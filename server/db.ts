@@ -6,6 +6,7 @@ import { eq, and, gte, lte, desc, like, sql } from "drizzle-orm";
 const { hometaxNotices, manualFiles, notifications } = schema;
 
 let _db: any = null;
+let _client: any = null;
 
 async function getDb() {
   if (_db) return _db;
@@ -15,8 +16,8 @@ async function getDb() {
   
   console.log(`[DB] Connecting to ${url.startsWith("libsql") ? "Turso" : "Local SQLite"}`);
   
-  const client = createClient({ url, authToken });
-  _db = drizzle(client, { schema });
+  _client = createClient({ url, authToken });
+  _db = drizzle(_client, { schema });
   return _db;
 }
 
@@ -37,13 +38,20 @@ export async function insertHometaxNotice(notice: any): Promise<number | null> {
       console.warn("[DB] Duplicate URL found:", notice.url);
       return null;
     }
+    
+    // id: null 문제를 피하기 위해 id 제외하고 삽입
     const data = {
-      ...notice,
-      createdAt: notice.createdAt || new Date(),
+      title: notice.title,
+      url: notice.url,
+      date: notice.date,
+      taxType: notice.taxType || "기타",
+      docType: notice.docType,
       viewCount: notice.viewCount || 0,
+      createdAt: notice.createdAt || new Date(),
     };
-    const result = await db.insert(hometaxNotices).values(data);
-    return Number(result.lastInsertRowid) || 1;
+    
+    const result = await db.insert(hometaxNotices).values(data).returning({ id: hometaxNotices.id });
+    return result[0]?.id || 1;
   } catch (err: any) {
     console.error("[DB] Error inserting hometax notice:", err);
     if (err?.message?.includes("UNIQUE constraint failed")) return null;
@@ -105,8 +113,8 @@ export async function insertManualFile(file: any): Promise<number | null> {
     };
     
     console.log("[DB] Inserting manual file:", data);
-    const result = await db.insert(manualFiles).values(data);
-    return Number(result.lastInsertRowid) || 1;
+    const result = await db.insert(manualFiles).values(data).returning({ id: manualFiles.id });
+    return result[0]?.id || 1;
   } catch (err: any) {
     console.error("[DB] Error inserting manual file:", err);
     throw err;
@@ -137,7 +145,10 @@ export async function getManualFiles(params: {
 export async function insertNotification(notif: any): Promise<void> {
   const db = await getDb();
   await db.insert(notifications).values({
-    ...notif,
+    noticeId: notif.noticeId,
+    title: notif.title,
+    url: notif.url,
+    isRead: notif.isRead || 0,
     createdAt: notif.createdAt || new Date(),
   });
 }
@@ -195,13 +206,20 @@ export async function upsertUser(user: any): Promise<void> {
   const existing = await getUserByOpenId(user.openId);
   if (existing) {
     await db.update(schema.users).set({
-      ...user,
+      name: user.name,
+      email: user.email,
+      loginMethod: user.loginMethod,
+      role: user.role || "user",
       updatedAt: new Date(),
       lastSignedIn: new Date(),
     }).where(eq(schema.users.openId, user.openId));
   } else {
     await db.insert(schema.users).values({
-      ...user,
+      openId: user.openId,
+      name: user.name,
+      email: user.email,
+      loginMethod: user.loginMethod,
+      role: user.role || "user",
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
