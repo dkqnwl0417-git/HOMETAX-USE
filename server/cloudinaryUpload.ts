@@ -100,7 +100,7 @@ export function registerCloudinaryUpload(app: Express) {
       if (!currentCloudName || !currentApiKey || !currentApiSecret) {
         return res.status(503).json({ 
           success: false, 
-          error: "Cloudinary 설정이 완료되지 않았습니다. 계정 생성 후 환경변수(CLOUDINARY_*)를 설정해주세요." 
+          error: "Cloudinary 설정이 완료되지 않았습니다. Render 환경변수(CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)를 설정해주세요." 
         });
       }
 

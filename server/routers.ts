@@ -13,6 +13,7 @@ import {
   getUnreadCount,
   incrementViewCount,
   insertManualFile,
+  insertHometaxNotice,
   markAllNotificationsRead,
 } from "./db";
 import { runCrawler } from "./crawler";
@@ -27,7 +28,6 @@ export const appRouter = router({
       return { success: true } as const;
     }),
   }),
-
   // ─── 홈택스 전자신고 설명서 ────────────────────────────────────────────────
   hometax: router({
     list: publicProcedure
@@ -44,19 +44,40 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return getHometaxNotices(input);
       }),
-
     incrementView: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await incrementViewCount(input.id);
         return { success: true };
       }),
-
     crawl: publicProcedure.mutation(async () => {
       const result = await runCrawler(true);
       return result;
     }),
-
+    create: publicProcedure
+      .input(
+        z.object({
+          title: z.string().min(1, "제목은 필수입니다."),
+          url: z.string().url("올바른 URL 형식이 아닙니다."),
+          taxType: z.string().default("기타"),
+          docType: z.string().default("기타"),
+          date: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const id = await insertHometaxNotice({
+          title: input.title,
+          url: input.url,
+          taxType: input.taxType as any,
+          docType: input.docType as any,
+          date: input.date || new Date().toISOString().split("T")[0],
+          viewCount: 0,
+        });
+        if (id === null) {
+          throw new TRPCError({ code: "CONFLICT", message: "이미 존재하는 URL이거나 저장에 실패했습니다." });
+        }
+        return { success: true, id };
+      }),
     delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
@@ -66,13 +87,11 @@ export const appRouter = router({
         }
         return { success: true };
       }),
-
     deleteAll: publicProcedure.mutation(async () => {
       const count = await deleteAllHometaxNotices();
       return { success: true, deleted: count };
     })
   }),
-
   // ─── 내부 메뉴얼 자료실 ───────────────────────────────────────────────────
   manual: router({
     list: publicProcedure
@@ -86,7 +105,6 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return getManualFiles(input);
       }),
-
     upload: publicProcedure
       .input(
         z.object({
@@ -102,22 +120,18 @@ export const appRouter = router({
         const title =
           input.title?.trim() ||
           input.originalName.replace(/\.[^/.]+$/, "");
-
         const id = await insertManualFile({
           title,
           fileUrl: input.fileUrl,
           fileType: input.fileType,
           uploader: input.uploader,
         });
-
         if (id === null) {
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "파일 저장 실패" });
         }
-
         return { success: true, id };
       }),
   }),
-
   // ─── 알림 ─────────────────────────────────────────────────────────────────
   notifications: router({
     list: publicProcedure
@@ -125,12 +139,10 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return getNotifications(input.limit);
       }),
-
     unreadCount: publicProcedure.query(async () => {
       const count = await getUnreadCount();
       return { count };
     }),
-
     markAllRead: publicProcedure.mutation(async () => {
       await markAllNotificationsRead();
       return { success: true };
