@@ -15,9 +15,6 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "engines": {
-    "node": ">=20.0.0"
-  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
     "@aws-sdk/s3-request-presigner": "^3.693.0",
@@ -125,14 +122,6 @@
       "tailwindcss>nanoid": "3.3.7"
     },
     "peerDependencyRules": {
-      "ignoreMissing": [
-        "vite"
-      ],
-      "allowedVersions": {
-        "vite": "7"
-      }
-    }
-  }  "peerDependencyRules": {
       "ignoreMissing": [
         "vite"
       ],
