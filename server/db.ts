@@ -1,9 +1,7 @@
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/libsql";
+import { createClient } from "@libsql/client";
 import * as schema from "../drizzle/schema";
 import { eq, and, gte, lte, desc, like, sql } from "drizzle-orm";
-import path from "path";
-import fs from "fs";
 
 const { hometaxNotices, manualFiles, notifications } = schema;
 
@@ -12,9 +10,13 @@ let _db: any = null;
 async function getDb() {
   if (_db) return _db;
   
-  const dbPath = process.env.DATABASE_URL || "sqlite.db";
-  const sqlite = new Database(dbPath);
-  _db = drizzle(sqlite, { schema });
+  const url = process.env.DATABASE_URL || "file:sqlite.db";
+  const authToken = process.env.DATABASE_AUTH_TOKEN;
+  
+  console.log(`[DB] Connecting to ${url.startsWith("libsql") ? "Turso" : "Local SQLite"}`);
+  
+  const client = createClient({ url, authToken });
+  _db = drizzle(client, { schema });
   return _db;
 }
 
@@ -30,21 +32,18 @@ export type InsertNotification = schema.InsertNotification;
 export async function insertHometaxNotice(notice: any): Promise<number | null> {
   const db = await getDb();
   try {
-    // 중복 URL 체크 (수동)
     const existing = await db.select().from(hometaxNotices).where(eq(hometaxNotices.url, notice.url)).limit(1);
     if (existing.length > 0) {
       console.warn("[DB] Duplicate URL found:", notice.url);
       return null;
     }
-
     const data = {
       ...notice,
       createdAt: notice.createdAt || new Date(),
       viewCount: notice.viewCount || 0,
     };
-
     const result = await db.insert(hometaxNotices).values(data);
-    return result.lastInsertRowid ?? 1;
+    return Number(result.lastInsertRowid) || 1;
   } catch (err: any) {
     console.error("[DB] Error inserting hometax notice:", err);
     if (err?.message?.includes("UNIQUE constraint failed")) return null;
@@ -107,7 +106,7 @@ export async function insertManualFile(file: any): Promise<number | null> {
     
     console.log("[DB] Inserting manual file:", data);
     const result = await db.insert(manualFiles).values(data);
-    return result.lastInsertRowid ?? 1;
+    return Number(result.lastInsertRowid) || 1;
   } catch (err: any) {
     console.error("[DB] Error inserting manual file:", err);
     throw err;
@@ -176,7 +175,7 @@ export async function deleteAllHometaxNotices(): Promise<number> {
   try {
     await db.delete(notifications);
     const result = await db.delete(hometaxNotices);
-    return (result as any)?.rowsAffected ?? 0;
+    return Number((result as any)?.rowsAffected) || 0;
   } catch (err) {
     console.error("[DB] Error deleting all hometax notices:", err);
     return 0;
