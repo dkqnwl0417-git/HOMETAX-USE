@@ -17,6 +17,29 @@ import {
   markAllNotificationsRead,
 } from "./db";
 import { runCrawler } from "./crawler";
+import axios from "axios";
+import * as cheerio from "cheerio";
+
+async function fetchTitleFromUrl(url: string): Promise<string> {
+  try {
+    const response = await axios.get(url, { 
+      timeout: 5000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
+    const $ = cheerio.load(response.data);
+    let title = $('title').text() || $('meta[property="og:title"]').attr('content') || "";
+    
+    // 홈택스 특정 제목 정제 (예: "국세청 홈택스 - 공지사항 상세")
+    title = title.replace(/국세청\s*홈택스\s*-\s*/, "").trim();
+    
+    return title || "제목 없음";
+  } catch (error) {
+    console.error("[URL Fetch] Error fetching title:", error);
+    return "제목 없음";
+  }
+}
 
 export const appRouter = router({
   system: systemRouter,
@@ -54,27 +77,43 @@ export const appRouter = router({
       const result = await runCrawler(true);
       return result;
     }),
+    fetchTitle: publicProcedure
+      .input(z.object({ url: z.string().url() }))
+      .query(async ({ input }) => {
+        const title = await fetchTitleFromUrl(input.url);
+        return { title };
+      }),
     create: publicProcedure
       .input(
         z.object({
-          title: z.string().min(1, "제목은 필수입니다."),
+          title: z.string().optional(),
           url: z.string().url("올바른 URL 형식이 아닙니다."),
           taxType: z.string().default("기타"),
-          docType: z.string().default("기타"),
+          docType: z.string().default("파일설명서"),
           date: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
+        let finalTitle = input.title?.trim();
+        if (!finalTitle) {
+          finalTitle = await fetchTitleFromUrl(input.url);
+        }
+
         const id = await insertHometaxNotice({
-          title: input.title,
+          title: finalTitle,
           url: input.url,
           taxType: input.taxType as any,
           docType: input.docType as any,
           date: input.date || new Date().toISOString().split("T")[0],
           viewCount: 0,
+          createdAt: new Date(),
         });
+        
         if (id === null) {
-          throw new TRPCError({ code: "CONFLICT", message: "이미 존재하는 URL이거나 저장에 실패했습니다." });
+          throw new TRPCError({ 
+            code: "CONFLICT", 
+            message: "이미 존재하는 URL이거나 저장에 실패했습니다. (중복 등록 확인 필요)" 
+          });
         }
         return { success: true, id };
       }),
@@ -116,18 +155,16 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        // 제목 미입력 시 파일명(확장자 제거)으로 자동 설정
-        const title =
-          input.title?.trim() ||
-          input.originalName.replace(/\.[^/.]+$/, "");
+        const title = input.title?.trim() || input.originalName.replace(/\.[^/.]+$/, "");
         const id = await insertManualFile({
           title,
           fileUrl: input.fileUrl,
           fileType: input.fileType,
           uploader: input.uploader,
+          createdAt: new Date(),
         });
         if (id === null) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "파일 저장 실패" });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "파일 정보를 DB에 저장하는 데 실패했습니다." });
         }
         return { success: true, id };
       }),

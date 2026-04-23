@@ -11,7 +11,8 @@ import {
   Plus, 
   X, 
   Loader2,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,7 +64,8 @@ export default function HometaxNotices() {
   const [newTitle, setNewTitle] = useState("");
   const [newUrl, setNewUrl] = useState("");
   const [newTaxType, setNewTaxType] = useState("기타");
-  const [newDocType, setNewDocType] = useState("기타");
+  const [newDocType, setNewDocType] = useState("파일설명서");
+  const [isFetchingTitle, setIsFetchingTitle] = useState(false);
 
   const queryInput = useMemo(
     () => ({
@@ -79,6 +81,8 @@ export default function HometaxNotices() {
 
   const { data, isLoading, refetch } = trpc.hometax.list.useQuery(queryInput);
   const incrementView = trpc.hometax.incrementView.useMutation();
+  
+  const utils = trpc.useUtils();
   
   const createMutation = trpc.hometax.create.useMutation({
     onSuccess: () => {
@@ -126,14 +130,33 @@ export default function HometaxNotices() {
     }
   };
 
+  const handleFetchTitle = async () => {
+    if (!newUrl.trim() || !newUrl.startsWith("http")) {
+      toast.error("올바른 URL을 입력해주세요.");
+      return;
+    }
+    setIsFetchingTitle(true);
+    try {
+      const result = await utils.client.hometax.fetchTitle.query({ url: newUrl.trim() });
+      if (result.title) {
+        setNewTitle(result.title);
+        toast.success("제목을 성공적으로 가져왔습니다.");
+      }
+    } catch (err) {
+      toast.error("제목을 가져오는 데 실패했습니다.");
+    } finally {
+      setIsFetchingTitle(false);
+    }
+  };
+
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !newUrl.trim()) {
-      toast.error("제목과 URL을 모두 입력해주세요.");
+    if (!newUrl.trim()) {
+      toast.error("URL을 입력해주세요.");
       return;
     }
     createMutation.mutate({
-      title: newTitle.trim(),
+      title: newTitle.trim() || undefined, // 비어있으면 서버에서 추출
       url: newUrl.trim(),
       taxType: newTaxType,
       docType: newDocType,
@@ -209,28 +232,39 @@ export default function HometaxNotices() {
           </h2>
           <form onSubmit={handleCreateSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground">제목 <span className="text-red-500">*</span></label>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-semibold text-foreground">URL <span className="text-red-500">*</span></label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      value={newUrl}
+                      onChange={(e) => setNewUrl(e.target.value)}
+                      placeholder="홈택스 공지사항 URL을 입력하세요 (https://...)"
+                      required
+                      className="pl-10 bg-background border-muted-foreground/20 focus:border-primary"
+                    />
+                  </div>
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    onClick={handleFetchTitle}
+                    disabled={isFetchingTitle || !newUrl}
+                    className="gap-2"
+                  >
+                    {isFetchingTitle ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    제목 가져오기
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-semibold text-foreground">제목 <span className="text-xs font-normal text-muted-foreground ml-1">(미입력 시 URL에서 자동 추출)</span></label>
                 <Input
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="설명서 제목을 입력하세요"
-                  required
+                  placeholder="제목을 입력하거나 위 버튼을 눌러 자동으로 가져오세요"
                   className="bg-background border-muted-foreground/20 focus:border-primary"
                 />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground">URL <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    value={newUrl}
-                    onChange={(e) => setNewUrl(e.target.value)}
-                    placeholder="https://..."
-                    required
-                    className="pl-10 bg-background border-muted-foreground/20 focus:border-primary"
-                  />
-                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-foreground">세금 유형</label>

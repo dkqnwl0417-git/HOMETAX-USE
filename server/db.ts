@@ -98,7 +98,7 @@ export async function insertHometaxNotice(notice: InsertHometaxNotice): Promise<
   const db = await getDb();
   if (!db) return null;
   try {
-    const result = await db.insert(hometaxNotices).values(notice);
+    const result = await db.insert(hometaxNotices).values({ ...notice, createdAt: new Date() });
     return (result as any).lastInsertRowid ?? null;
   } catch (err: any) {
     // Duplicate URL (unique constraint) → skip silently
@@ -173,7 +173,7 @@ export async function urlExists(url: string): Promise<boolean> {
 export async function insertManualFile(file: InsertManualFile): Promise<number | null> {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.insert(manualFiles).values(file);
+  const result = await db.insert(manualFiles).values({ ...file, createdAt: new Date() });
   return (result as any).lastInsertRowid ?? null;
 }
 
