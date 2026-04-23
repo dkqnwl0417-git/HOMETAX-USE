@@ -17,29 +17,6 @@ import {
   markAllNotificationsRead,
 } from "./db";
 import { runCrawler } from "./crawler";
-import axios from "axios";
-import * as cheerio from "cheerio";
-
-async function fetchTitleFromUrl(url: string): Promise<string> {
-  try {
-    const response = await axios.get(url, { 
-      timeout: 5000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-    const $ = cheerio.load(response.data);
-    let title = $('title').text() || $('meta[property="og:title"]').attr('content') || "";
-    
-    // 홈택스 특정 제목 정제 (예: "국세청 홈택스 - 공지사항 상세")
-    title = title.replace(/국세청\s*홈택스\s*-\s*/, "").trim();
-    
-    return title || "제목 없음";
-  } catch (error) {
-    console.error("[URL Fetch] Error fetching title:", error);
-    return "제목 없음";
-  }
-}
 
 export const appRouter = router({
   system: systemRouter,
@@ -77,12 +54,6 @@ export const appRouter = router({
       const result = await runCrawler(true);
       return result;
     }),
-    fetchTitle: publicProcedure
-      .input(z.object({ url: z.string().url() }))
-      .query(async ({ input }) => {
-        const title = await fetchTitleFromUrl(input.url);
-        return { title };
-      }),
     create: publicProcedure
       .input(
         z.object({
@@ -90,13 +61,18 @@ export const appRouter = router({
           url: z.string().url("올바른 URL 형식이 아닙니다."),
           taxType: z.string().default("기타"),
           docType: z.string().default("파일설명서"),
-          date: z.string().optional(),
+          date: z.string().min(1, "날짜는 필수입니다."),
         })
       )
       .mutation(async ({ input }) => {
+        // 제목 자동 생성 규칙 적용: [전자신고]세금유형 문서유형(YYYY년 M월 D일 공지)
         let finalTitle = input.title?.trim();
         if (!finalTitle) {
-          finalTitle = await fetchTitleFromUrl(input.url);
+          const dateObj = new Date(input.date);
+          const year = dateObj.getFullYear();
+          const month = dateObj.getMonth() + 1;
+          const day = dateObj.getDate();
+          finalTitle = `[전자신고]${input.taxType} ${input.docType}(${year}년 ${month}월 ${day}일 공지)`;
         }
 
         const id = await insertHometaxNotice({
@@ -104,7 +80,7 @@ export const appRouter = router({
           url: input.url,
           taxType: input.taxType as any,
           docType: input.docType as any,
-          date: input.date || new Date().toISOString().split("T")[0],
+          date: input.date,
           viewCount: 0,
           createdAt: new Date(),
         });

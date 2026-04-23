@@ -1,107 +1,52 @@
-import { and, desc, eq, gte, like, lte, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/libsql";
-import { createClient } from "@libsql/client";
-import {
-  HometaxNotice,
-  InsertHometaxNotice,
-  InsertManualFile,
-  InsertNotification,
-  InsertUser,
-  ManualFile,
-  Notification,
-  hometaxNotices,
-  manualFiles,
-  notifications,
-  users,
-} from "../drizzle/schema";
-import { ENV } from "./_core/env";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import Database from "better-sqlite3";
+import * as schema from "@drizzle/schema";
+import { eq, and, gte, lte, desc, like, sql } from "drizzle-orm";
+import path from "path";
+import fs from "fs";
 
-let _db: ReturnType<typeof drizzle> | null = null;
+const { hometaxNotices, manualFiles, notifications } = schema;
 
-export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
-    try {
-      const client = createClient({
-        url: process.env.DATABASE_URL,
-        authToken: process.env.TURSO_AUTH_TOKEN,
-      });
-      _db = drizzle(client);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
-    }
-  }
+let _db: any = null;
+
+async function getDb() {
+  if (_db) return _db;
+  
+  const dbPath = process.env.DATABASE_URL || "sqlite.db";
+  const sqlite = new Database(dbPath);
+  _db = drizzle(sqlite, { schema });
   return _db;
 }
 
-// ─── Users ────────────────────────────────────────────────────────────────────
-
-export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) throw new Error("User openId is required for upsert");
-  const db = await getDb();
-  if (!db) return;
-
-  const now = new Date();
-  const values: InsertUser = { 
-    openId: user.openId,
-    createdAt: user.createdAt || now,
-    updatedAt: user.updatedAt || now,
-    lastSignedIn: user.lastSignedIn || now,
-  };
-  const updateSet: Record<string, unknown> = {};
-  const textFields = ["name", "email", "loginMethod"] as const;
-  type TextField = (typeof textFields)[number];
-  const assignNullable = (field: TextField) => {
-    const value = user[field];
-    if (value === undefined) return;
-    const normalized = value ?? null;
-    values[field] = normalized;
-    updateSet[field] = normalized;
-  };
-  textFields.forEach(assignNullable);
-  if (user.lastSignedIn !== undefined) {
-    values.lastSignedIn = user.lastSignedIn;
-    updateSet.lastSignedIn = user.lastSignedIn;
-  }
-  if (user.role !== undefined) {
-    values.role = user.role;
-    updateSet.role = user.role;
-  } else if (user.openId === ENV.ownerOpenId) {
-    values.role = "admin";
-    updateSet.role = "admin";
-  }
-  if (!values.lastSignedIn) values.lastSignedIn = new Date();
-  if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
-  updateSet.updatedAt = new Date();
-  
-  // SQLite는 INSERT OR REPLACE 사용
-  try {
-    await db.insert(users).values(values).onConflictDoUpdate({
-      target: users.openId,
-      set: updateSet,
-    });
-  } catch (error) {
-    console.warn("[Database] Error upserting user:", error);
-  }
-}
-
-export async function getUserByOpenId(openId: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
-}
+export type HometaxNotice = schema.HometaxNotice;
+export type InsertHometaxNotice = schema.InsertHometaxNotice;
+export type ManualFile = schema.ManualFile;
+export type InsertManualFile = schema.InsertManualFile;
+export type Notification = schema.Notification;
+export type InsertNotification = schema.InsertNotification;
 
 // ─── HometaxNotices ───────────────────────────────────────────────────────────
 
-export async function insertHometaxNotice(notice: InsertHometaxNotice): Promise<number | null> {
+export async function insertHometaxNotice(notice: any): Promise<number | null> {
   const db = await getDb();
-  if (!db) return null;
   try {
-    const result = await db.insert(hometaxNotices).values({ ...notice, createdAt: new Date() });
-    return (result as any).lastInsertRowid ?? null;
+    // 중복 URL 체크 (수동)
+    const existing = await db.select().from(hometaxNotices).where(eq(hometaxNotices.url, notice.url)).limit(1);
+    if (existing.length > 0) {
+      console.warn("[DB] Duplicate URL found:", notice.url);
+      return null;
+    }
+
+    const data = {
+      ...notice,
+      createdAt: notice.createdAt || new Date(),
+      viewCount: notice.viewCount || 0,
+    };
+
+    const result = await db.insert(hometaxNotices).values(data);
+    return result.lastInsertRowid ?? 1;
   } catch (err: any) {
-    // Duplicate URL (unique constraint) → skip silently
+    console.error("[DB] Error inserting hometax notice:", err);
     if (err?.message?.includes("UNIQUE constraint failed")) return null;
     throw err;
   }
@@ -116,8 +61,6 @@ export async function getHometaxNotices(params: {
   pageSize: number;
 }): Promise<{ items: HometaxNotice[]; total: number }> {
   const db = await getDb();
-  if (!db) return { items: [], total: 0 };
-
   const conditions = [];
   if (params.startDate) conditions.push(gte(hometaxNotices.date, params.startDate));
   if (params.endDate) conditions.push(lte(hometaxNotices.date, params.endDate));
@@ -127,54 +70,48 @@ export async function getHometaxNotices(params: {
   if (params.docType && params.docType !== "전체") {
     conditions.push(eq(hometaxNotices.docType, params.docType as any));
   }
-
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const offset = (params.page - 1) * params.pageSize;
-
+  
   const [items, countResult] = await Promise.all([
-    db
-      .select()
-      .from(hometaxNotices)
-      .where(where)
-      .orderBy(desc(hometaxNotices.date), desc(hometaxNotices.id))
-      .limit(params.pageSize)
-      .offset(offset),
-    db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(hometaxNotices)
-      .where(where),
+    db.select().from(hometaxNotices).where(where).orderBy(desc(hometaxNotices.date), desc(hometaxNotices.id)).limit(params.pageSize).offset(offset),
+    db.select({ count: sql<number>`COUNT(*)` }).from(hometaxNotices).where(where),
   ]);
-
+  
   return { items, total: Number(countResult[0]?.count ?? 0) };
 }
 
 export async function incrementViewCount(id: number): Promise<void> {
   const db = await getDb();
-  if (!db) return;
-  await db
-    .update(hometaxNotices)
-    .set({ viewCount: sql`${hometaxNotices.viewCount} + 1` })
-    .where(eq(hometaxNotices.id, id));
+  await db.update(hometaxNotices).set({ viewCount: sql`${hometaxNotices.viewCount} + 1` }).where(eq(hometaxNotices.id, id));
 }
 
 export async function urlExists(url: string): Promise<boolean> {
   const db = await getDb();
-  if (!db) return false;
-  const result = await db
-    .select({ id: hometaxNotices.id })
-    .from(hometaxNotices)
-    .where(eq(hometaxNotices.url, url))
-    .limit(1);
+  const result = await db.select({ id: hometaxNotices.id }).from(hometaxNotices).where(eq(hometaxNotices.url, url)).limit(1);
   return result.length > 0;
 }
 
 // ─── ManualFiles ──────────────────────────────────────────────────────────────
 
-export async function insertManualFile(file: InsertManualFile): Promise<number | null> {
+export async function insertManualFile(file: any): Promise<number | null> {
   const db = await getDb();
-  if (!db) return null;
-  const result = await db.insert(manualFiles).values({ ...file, createdAt: new Date() });
-  return (result as any).lastInsertRowid ?? null;
+  try {
+    const data = {
+      title: file.title,
+      fileUrl: file.fileUrl,
+      fileType: file.fileType,
+      uploader: file.uploader,
+      createdAt: file.createdAt || new Date(),
+    };
+    
+    console.log("[DB] Inserting manual file:", data);
+    const result = await db.insert(manualFiles).values(data);
+    return result.lastInsertRowid ?? 1;
+  } catch (err: any) {
+    console.error("[DB] Error inserting manual file:", err);
+    throw err;
+  }
 }
 
 export async function getManualFiles(params: {
@@ -183,69 +120,49 @@ export async function getManualFiles(params: {
   pageSize: number;
 }): Promise<{ items: ManualFile[]; total: number }> {
   const db = await getDb();
-  if (!db) return { items: [], total: 0 };
-
   const conditions = [];
   if (params.keyword) conditions.push(like(manualFiles.title, `%${params.keyword}%`));
   const where = conditions.length > 0 ? and(...conditions) : undefined;
   const offset = (params.page - 1) * params.pageSize;
-
+  
   const [items, countResult] = await Promise.all([
-    db
-      .select()
-      .from(manualFiles)
-      .where(where)
-      .orderBy(desc(manualFiles.createdAt))
-      .limit(params.pageSize)
-      .offset(offset),
+    db.select().from(manualFiles).where(where).orderBy(desc(manualFiles.createdAt)).limit(params.pageSize).offset(offset),
     db.select({ count: sql<number>`COUNT(*)` }).from(manualFiles).where(where),
   ]);
-
+  
   return { items, total: Number(countResult[0]?.count ?? 0) };
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
-export async function insertNotification(notif: InsertNotification): Promise<void> {
+export async function insertNotification(notif: any): Promise<void> {
   const db = await getDb();
-  if (!db) return;
-  await db.insert(notifications).values(notif);
+  await db.insert(notifications).values({
+    ...notif,
+    createdAt: notif.createdAt || new Date(),
+  });
 }
 
 export async function getNotifications(limit = 20): Promise<Notification[]> {
   const db = await getDb();
-  if (!db) return [];
-  return db
-    .select()
-    .from(notifications)
-    .orderBy(desc(notifications.createdAt))
-    .limit(limit);
+  return db.select().from(notifications).orderBy(desc(notifications.createdAt)).limit(limit);
 }
 
 export async function getUnreadCount(): Promise<number> {
   const db = await getDb();
-  if (!db) return 0;
-  const result = await db
-    .select({ count: sql<number>`COUNT(*)` })
-    .from(notifications)
-    .where(eq(notifications.isRead, 0));
+  const result = await db.select({ count: sql<number>`COUNT(*)` }).from(notifications).where(eq(notifications.isRead, 0));
   return Number(result[0]?.count ?? 0);
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
   const db = await getDb();
-  if (!db) return;
   await db.update(notifications).set({ isRead: 1 }).where(eq(notifications.isRead, 0));
 }
 
-// 홈택스 공지사항 삭제
 export async function deleteHometaxNotice(id: number): Promise<boolean> {
   const db = await getDb();
-  if (!db) return false;
   try {
-    // 관련 알림도 함께 삭제
     await db.delete(notifications).where(eq(notifications.noticeId, id));
-    // 공지사항 삭제
     await db.delete(hometaxNotices).where(eq(hometaxNotices.id, id));
     return true;
   } catch (err) {
@@ -254,18 +171,41 @@ export async function deleteHometaxNotice(id: number): Promise<boolean> {
   }
 }
 
-// 모든 홈택스 공지사항 삭제 (테스트용)
 export async function deleteAllHometaxNotices(): Promise<number> {
   const db = await getDb();
-  if (!db) return 0;
   try {
-    // 먼저 모든 관련 알림 삭제
     await db.delete(notifications);
-    // 모든 공지사항 삭제
     const result = await db.delete(hometaxNotices);
     return (result as any)?.rowsAffected ?? 0;
   } catch (err) {
     console.error("[DB] Error deleting all hometax notices:", err);
     return 0;
+  }
+}
+
+// ─── Users ───────────────────────────────────────────────────────────────────
+
+export async function getUserByOpenId(openId: string): Promise<schema.User | null> {
+  const db = await getDb();
+  const result = await db.select().from(schema.users).where(eq(schema.users.openId, openId)).limit(1);
+  return result[0] || null;
+}
+
+export async function upsertUser(user: any): Promise<void> {
+  const db = await getDb();
+  const existing = await getUserByOpenId(user.openId);
+  if (existing) {
+    await db.update(schema.users).set({
+      ...user,
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    }).where(eq(schema.users.openId, user.openId));
+  } else {
+    await db.insert(schema.users).values({
+      ...user,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastSignedIn: new Date(),
+    });
   }
 }
