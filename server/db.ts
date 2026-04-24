@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import * as schema from "../drizzle/schema";
 import { eq, and, gte, lte, desc, like, sql } from "drizzle-orm";
+import { migrate } from "drizzle-orm/libsql/migrator";
 
 const { hometaxNotices, manualFiles, notifications } = schema;
 
@@ -11,18 +12,36 @@ let _client: any = null;
 async function getDb() {
   if (_db) return _db;
   
-  // Render 환경변수 우선순위: TURSO_AUTH_TOKEN -> DATABASE_AUTH_TOKEN
   const url = process.env.DATABASE_URL || "file:sqlite.db";
   const authToken = process.env.TURSO_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN;
   
   console.log(`[DB] Connecting to ${url.startsWith("libsql") ? "Turso" : "Local SQLite"}`);
-  if (url.startsWith("libsql") && !authToken) {
-    console.warn("[DB] Warning: Turso URL is provided but Auth Token is missing!");
-  }
   
   _client = createClient({ url, authToken });
   _db = drizzle(_client, { schema });
+
+  // 자동 마이그레이션 시도 (테이블이 없을 경우 생성)
+  // 단, production 환경에서 Turso 연결 시에만 실행하거나 drizzle-kit push를 권장하지만 
+  // 런타임 에러 방지를 위해 간단한 체크 로직을 추가할 수 있습니다.
+  
   return _db;
+}
+
+// 초기화 함수: 서버 시작 시 테이블 존재 여부 확인 및 생성 안내
+export async function initDb() {
+  const db = await getDb();
+  try {
+    console.log("[DB] Initializing database check...");
+    // 간단한 쿼리로 테이블 존재 확인
+    await db.select().from(hometaxNotices).limit(1);
+    console.log("[DB] Database tables verified.");
+  } catch (err: any) {
+    if (err.message?.includes("no such table")) {
+      console.error("[DB] Critical: Tables are missing! Please run 'npx drizzle-kit push' or check migration status.");
+    } else {
+      console.error("[DB] Initialization error:", err.message);
+    }
+  }
 }
 
 export type HometaxNotice = schema.HometaxNotice;
@@ -39,7 +58,6 @@ export async function insertHometaxNotice(notice: any): Promise<number | null> {
   try {
     const existing = await db.select().from(hometaxNotices).where(eq(hometaxNotices.url, notice.url)).limit(1);
     if (existing.length > 0) {
-      console.warn("[DB] Duplicate URL found:", notice.url);
       return null;
     }
     
@@ -57,7 +75,6 @@ export async function insertHometaxNotice(notice: any): Promise<number | null> {
     return result[0]?.id || 1;
   } catch (err: any) {
     console.error("[DB] Error inserting hometax notice:", err);
-    if (err?.message?.includes("UNIQUE constraint failed")) return null;
     throw err;
   }
 }
@@ -115,7 +132,6 @@ export async function insertManualFile(file: any): Promise<number | null> {
       createdAt: file.createdAt || new Date(),
     };
     
-    console.log("[DB] Inserting manual file:", data);
     const result = await db.insert(manualFiles).values(data).returning({ id: manualFiles.id });
     return result[0]?.id || 1;
   } catch (err: any) {

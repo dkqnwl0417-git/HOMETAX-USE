@@ -11,6 +11,7 @@ import { serveStatic, setupVite } from "./vite";
 import { registerCloudinaryUpload } from "../cloudinaryUpload";
 import { runCrawler } from "../crawler";
 import cron from "node-cron";
+import { initDb } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -40,6 +41,9 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerCloudinaryUpload(app);
+  
+  // DB 초기화 및 테이블 체크
+  await initDb().catch(err => console.error("[DB] Init failed:", err));
 
   // 크롤링 스케줄러: 매일 오전 9시 실행
   cron.schedule("0 9 * * *", async () => {
