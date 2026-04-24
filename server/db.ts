@@ -2,9 +2,8 @@ import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import * as schema from "../drizzle/schema";
 import { eq, and, gte, lte, desc, like, sql } from "drizzle-orm";
-import { migrate } from "drizzle-orm/libsql/migrator";
 
-const { hometaxNotices, manualFiles, notifications } = schema;
+const { hometaxNotices, manualFiles, notifications, users } = schema;
 
 let _db: any = null;
 let _client: any = null;
@@ -19,29 +18,70 @@ async function getDb() {
   
   _client = createClient({ url, authToken });
   _db = drizzle(_client, { schema });
-
-  // 자동 마이그레이션 시도 (테이블이 없을 경우 생성)
-  // 단, production 환경에서 Turso 연결 시에만 실행하거나 drizzle-kit push를 권장하지만 
-  // 런타임 에러 방지를 위해 간단한 체크 로직을 추가할 수 있습니다.
   
   return _db;
 }
 
-// 초기화 함수: 서버 시작 시 테이블 존재 여부 확인 및 생성 안내
+/**
+ * [최후의 수단] 서버 시작 시 테이블이 없으면 강제로 생성하는 자가 치유 로직
+ */
 export async function initDb() {
   const db = await getDb();
-  try {
-    console.log("[DB] Initializing database check...");
-    // 간단한 쿼리로 테이블 존재 확인
-    await db.select().from(hometaxNotices).limit(1);
-    console.log("[DB] Database tables verified.");
-  } catch (err: any) {
-    if (err.message?.includes("no such table")) {
-      console.error("[DB] Critical: Tables are missing! Please run 'npx drizzle-kit push' or check migration status.");
-    } else {
-      console.error("[DB] Initialization error:", err.message);
+  console.log("[DB] Starting Self-Healing Database Initialization...");
+
+  const createTableQueries = [
+    // 1. Users 테이블
+    `CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      open_id TEXT NOT NULL UNIQUE,
+      name TEXT,
+      email TEXT,
+      login_method TEXT,
+      role TEXT DEFAULT 'user',
+      created_at INTEGER,
+      updated_at INTEGER,
+      last_signed_in INTEGER
+    )`,
+    // 2. HometaxNotices 테이블
+    `CREATE TABLE IF NOT EXISTS hometax_notices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      url TEXT NOT NULL UNIQUE,
+      tax_type TEXT NOT NULL,
+      doc_type TEXT NOT NULL,
+      date TEXT NOT NULL,
+      view_count INTEGER DEFAULT 0,
+      created_at INTEGER
+    )`,
+    // 3. ManualFiles 테이블
+    `CREATE TABLE IF NOT EXISTS manual_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      file_url TEXT NOT NULL,
+      file_type TEXT NOT NULL,
+      uploader TEXT NOT NULL,
+      created_at INTEGER
+    )`,
+    // 4. Notifications 테이블
+    `CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      notice_id INTEGER,
+      title TEXT NOT NULL,
+      url TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      created_at INTEGER
+    )`
+  ];
+
+  for (const query of createTableQueries) {
+    try {
+      await _client.execute(query);
+    } catch (err: any) {
+      console.error(`[DB] Error creating table: ${err.message}`);
     }
   }
+
+  console.log("[DB] Self-Healing Initialization Complete.");
 }
 
 export type HometaxNotice = schema.HometaxNotice;
@@ -57,24 +97,19 @@ export async function insertHometaxNotice(notice: any): Promise<number | null> {
   const db = await getDb();
   try {
     const existing = await db.select().from(hometaxNotices).where(eq(hometaxNotices.url, notice.url)).limit(1);
-    if (existing.length > 0) {
-      return null;
-    }
-    
+    if (existing.length > 0) return null;
+
     const data = {
-      title: notice.title,
-      url: notice.url,
-      date: notice.date,
-      taxType: notice.taxType || "기타",
-      docType: notice.docType,
-      viewCount: notice.viewCount || 0,
+      ...notice,
       createdAt: notice.createdAt || new Date(),
+      viewCount: notice.viewCount || 0,
     };
-    
+
     const result = await db.insert(hometaxNotices).values(data).returning({ id: hometaxNotices.id });
     return result[0]?.id || 1;
   } catch (err: any) {
     console.error("[DB] Error inserting hometax notice:", err);
+    if (err?.message?.includes("UNIQUE constraint failed")) return null;
     throw err;
   }
 }
