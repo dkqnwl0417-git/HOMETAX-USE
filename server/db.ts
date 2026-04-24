@@ -12,7 +12,7 @@ async function getDb() {
   if (_db) return _db;
   
   const url = process.env.DATABASE_URL || "file:sqlite.db";
-  const authToken = process.env.DATABASE_AUTH_TOKEN;
+  const authToken = process.env.TURSO_AUTH_TOKEN;
   
   console.log(`[DB] Connecting to ${url.startsWith("libsql") ? "Turso" : "Local SQLite"}`);
   
