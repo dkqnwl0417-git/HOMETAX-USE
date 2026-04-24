@@ -136,6 +136,7 @@ export const appRouter = router({
           title,
           fileUrl: input.fileUrl,
           fileType: input.fileType,
+          originalName: input.originalName,
           uploader: input.uploader,
           createdAt: new Date(),
         });

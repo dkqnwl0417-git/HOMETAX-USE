@@ -110,11 +110,13 @@ export default function ManualFiles() {
     }
   });
 
-  const handleDownload = (url: string, filename: string) => {
-    const downloadUrl = url.includes('?') ? `${url}&dl=true` : `${url}?dl=true`;
+  const handleDownload = (url: string, originalName: string, fileType: string) => {
+    // 서버 프록시를 통해 원본 파일명과 확장자를 보존하여 다운로드
+    const filename = encodeURIComponent(originalName || `file.${fileType}`);
+    const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${filename}`;
     const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.setAttribute('download', filename);
+    link.href = proxyUrl;
+    link.setAttribute('download', originalName || `file.${fileType}`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -214,7 +216,7 @@ export default function ManualFiles() {
                       <div className="overflow-hidden">
                         <h3 
                           className="font-semibold truncate cursor-pointer hover:text-primary transition-colors"
-                          onClick={() => handleDownload(file.fileUrl, file.title + '.' + file.fileType)}
+                          onClick={() => handleDownload(file.fileUrl, file.originalName || file.title + '.' + file.fileType, file.fileType)}
                         >
                           {file.title}
                         </h3>
@@ -242,7 +244,7 @@ export default function ManualFiles() {
                         variant="outline" 
                         size="sm" 
                         className="gap-2"
-                        onClick={() => handleDownload(file.fileUrl, file.title + '.' + file.fileType)}
+                        onClick={() => handleDownload(file.fileUrl, file.originalName || file.title + '.' + file.fileType, file.fileType)}
                       >
                         <Download className="w-4 h-4" />
                         다운로드

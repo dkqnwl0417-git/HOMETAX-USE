@@ -26,12 +26,14 @@ export async function getDb() {
 }
 
 export async function initDb() {
-  const db = await getDb();
+  // getDb()를 호출하면 다시 initDb()가 호출되는 재귀 무한루프 발생 → 직접 인스턴스 사용
+  if (!dbInstance) await getDb();
+  const db = dbInstance;
   try {
     console.log("[DB] Starting Self-Healing Database Initialization...");
     await db.run(sql`CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, role TEXT DEFAULT 'user', created_at INTEGER)`);
     await db.run(sql`CREATE TABLE IF NOT EXISTS hometax_notices (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, url TEXT, tax_type TEXT, doc_type TEXT, date TEXT, view_count INTEGER DEFAULT 0, created_at INTEGER)`);
-    await db.run(sql`CREATE TABLE IF NOT EXISTS manual_files (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, file_url TEXT, file_type TEXT, uploader TEXT, created_at INTEGER)`);
+    await db.run(sql`CREATE TABLE IF NOT EXISTS manual_files (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, file_url TEXT, file_type TEXT, original_name TEXT DEFAULT '', uploader TEXT, created_at INTEGER)`);
     await db.run(sql`CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, message TEXT, is_read INTEGER DEFAULT 0, created_at INTEGER)`);
     console.log("[DB] Self-Healing Initialization Complete.");
   } catch (err) {
@@ -137,7 +139,11 @@ export async function insertManualFile(data: any) {
   const db = await getDb();
   try {
     const result = await db.insert(schema.manualFiles).values({
-      ...data,
+      title: data.title,
+      fileUrl: data.fileUrl,
+      fileType: data.fileType,
+      originalName: data.originalName || data.title,
+      uploader: data.uploader,
       createdAt: data.createdAt || new Date()
     }).returning();
     return result[0].id;
