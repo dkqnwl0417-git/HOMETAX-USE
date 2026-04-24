@@ -3,7 +3,7 @@ import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import { Readable } from "stream";
 
-// Cloudinary 설정 (환경변수가 있을 때만 시도)
+// Cloudinary 설정
 const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
 const apiKey = process.env.CLOUDINARY_API_KEY;
 const apiSecret = process.env.CLOUDINARY_API_SECRET;
@@ -15,65 +15,30 @@ if (cloudName && apiKey && apiSecret) {
     api_secret: apiSecret,
   });
   console.log("[Cloudinary] Configured successfully.");
-} else {
-  console.warn("[Cloudinary] Credentials missing. Upload functionality will be limited.");
 }
 
-// 허용 파일 형식
-const ALLOWED_MIMETYPES = [
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/x-hwp",
-  "application/haansofthwp",
-  "application/vnd.hancom.hwp",
-];
-
-const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".hwp"];
-
-function getFileType(originalname: string, mimetype: string): string {
-  const ext = originalname.toLowerCase().match(/\.[^.]+$/)?.[0] || "";
-  if (ext === ".pdf") return "pdf";
-  if (ext === ".doc") return "doc";
-  if (ext === ".docx") return "docx";
-  if (ext === ".xls") return "xls";
-  if (ext === ".xlsx") return "xlsx";
-  if (ext === ".hwp") return "hwp";
-  if (mimetype.includes("pdf")) return "pdf";
-  if (mimetype.includes("word")) return "docx";
-  if (mimetype.includes("excel") || mimetype.includes("spreadsheet")) return "xlsx";
-  return ext.replace(".", "") || "unknown";
-}
-
-// multer 메모리 스토리지 사용
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
-  fileFilter: (_req, file, cb) => {
-    const ext = file.originalname.toLowerCase().match(/\.[^.]+$/)?.[0] || "";
-    const allowed =
-      ALLOWED_MIMETYPES.includes(file.mimetype) ||
-      ALLOWED_EXTENSIONS.includes(ext) ||
-      file.mimetype === "application/octet-stream";
-    if (allowed) {
-      cb(null, true);
-    } else {
-      cb(new Error(`허용되지 않는 파일 형식입니다. (${ext})`));
-    }
-  },
 });
+
+function getFileType(originalname: string): string {
+  const ext = originalname.toLowerCase().match(/\.[^.]+$/)?.[0] || "";
+  return ext.replace(".", "") || "unknown";
+}
 
 function uploadToCloudinary(buffer: Buffer, originalname: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const publicId = `manual-files/${Date.now()}-${originalname.replace(/[^a-zA-Z0-9가-힣._-]/g, "_")}`;
+    // 한글 파일명 깨짐 방지를 위해 public_id에서 한글을 제외하거나 안전하게 변환
+    const safeName = Buffer.from(originalname, 'latin1').toString('utf8');
+    const publicId = `manual-files/${Date.now()}`;
+    
     const stream = cloudinary.uploader.upload_stream(
       {
         resource_type: "raw",
         public_id: publicId,
-        use_filename: true,
-        unique_filename: false,
+        // 원본 파일명을 보존하기 위해 content_disposition 설정
+        content_disposition: `attachment; filename="${encodeURIComponent(safeName)}"`,
       },
       (error, result) => {
         if (error) reject(error);
@@ -92,26 +57,17 @@ export function registerCloudinaryUpload(app: Express) {
         return res.status(400).json({ error: "파일이 없습니다." });
       }
 
-      // 런타임에 다시 한 번 설정 확인
-      const currentCloudName = process.env.CLOUDINARY_CLOUD_NAME;
-      const currentApiKey = process.env.CLOUDINARY_API_KEY;
-      const currentApiSecret = process.env.CLOUDINARY_API_SECRET;
-
-      if (!currentCloudName || !currentApiKey || !currentApiSecret) {
-        return res.status(503).json({ 
-          success: false, 
-          error: "Cloudinary 설정이 완료되지 않았습니다. Render 환경변수(CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET)를 설정해주세요." 
-        });
-      }
-
+      // 한글 파일명 복구 (multer latin1 -> utf8)
+      const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+      
       const fileUrl = await uploadToCloudinary(req.file.buffer, req.file.originalname);
-      const fileType = getFileType(req.file.originalname, req.file.mimetype);
+      const fileType = getFileType(originalName);
 
       return res.json({
         success: true,
         fileUrl,
         fileType,
-        originalName: req.file.originalname,
+        originalName: originalName,
       });
     } catch (err: any) {
       console.error("[Upload] Error:", err);

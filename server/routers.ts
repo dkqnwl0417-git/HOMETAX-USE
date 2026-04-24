@@ -58,14 +58,14 @@ export const appRouter = router({
       .input(
         z.object({
           title: z.string().optional(),
-          url: z.string().url("올바른 URL 형식이 아닙니다."),
+          url: z.string().min(1, "URL은 필수입니다."), // z.string().url() 대신 min(1) 사용하여 특수 URL 허용
           taxType: z.string().default("기타"),
           docType: z.string().default("파일설명서"),
           date: z.string().min(1, "날짜는 필수입니다."),
         })
       )
       .mutation(async ({ input }) => {
-        // 제목 자동 생성 규칙 적용: [전자신고]세금유형 문서유형(YYYY년 M월 D일 공지)
+        // 제목 자동 생성 규칙 적용
         let finalTitle = input.title?.trim();
         if (!finalTitle) {
           const dateObj = new Date(input.date);
@@ -77,7 +77,7 @@ export const appRouter = router({
 
         const id = await insertHometaxNotice({
           title: finalTitle,
-          url: input.url,
+          url: input.url, // 입력받은 URL 그대로 저장
           taxType: input.taxType as any,
           docType: input.docType as any,
           date: input.date,
