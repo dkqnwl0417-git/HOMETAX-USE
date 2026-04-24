@@ -150,6 +150,15 @@ export async function insertHometaxNotice(data: any) {
   }
 }
 
+export async function urlExists(url: string) {
+  const db = await getDb();
+  const encodedUrl = "b64:" + Buffer.from(url, "utf8").toString("base64");
+  const existing = await db.query.hometaxNotices.findFirst({
+    where: eq(schema.hometaxNotices.url, encodedUrl),
+  });
+  return !!existing;
+}
+
 export async function deleteHometaxNotice(id: number) {
   const db = await getDb();
   try {
