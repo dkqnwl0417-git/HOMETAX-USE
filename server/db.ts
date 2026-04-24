@@ -11,10 +11,14 @@ let _client: any = null;
 async function getDb() {
   if (_db) return _db;
   
+  // Render 환경변수 우선순위: TURSO_AUTH_TOKEN -> DATABASE_AUTH_TOKEN
   const url = process.env.DATABASE_URL || "file:sqlite.db";
-  const authToken = process.env.TURSO_AUTH_TOKEN;
+  const authToken = process.env.TURSO_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN;
   
   console.log(`[DB] Connecting to ${url.startsWith("libsql") ? "Turso" : "Local SQLite"}`);
+  if (url.startsWith("libsql") && !authToken) {
+    console.warn("[DB] Warning: Turso URL is provided but Auth Token is missing!");
+  }
   
   _client = createClient({ url, authToken });
   _db = drizzle(_client, { schema });
@@ -39,7 +43,6 @@ export async function insertHometaxNotice(notice: any): Promise<number | null> {
       return null;
     }
     
-    // id: null 문제를 피하기 위해 id 제외하고 삽입
     const data = {
       title: notice.title,
       url: notice.url,

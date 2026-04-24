@@ -6,5 +6,6 @@ export default defineConfig({
   dialect: "sqlite",
   dbCredentials: {
     url: process.env.DATABASE_URL || "sqlite.db",
+    authToken: process.env.TURSO_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN,
   },
 });
