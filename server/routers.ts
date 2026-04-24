@@ -15,6 +15,7 @@ import {
   insertManualFile,
   insertHometaxNotice,
   markAllNotificationsRead,
+  deleteManualFile,
 } from "./db";
 import { runCrawler } from "./crawler";
 
@@ -58,14 +59,13 @@ export const appRouter = router({
       .input(
         z.object({
           title: z.string().optional(),
-          url: z.string().min(1, "URL은 필수입니다."), // z.string().url() 대신 min(1) 사용하여 특수 URL 허용
+          url: z.string().min(1, "URL은 필수입니다."),
           taxType: z.string().default("기타"),
           docType: z.string().default("파일설명서"),
           date: z.string().min(1, "날짜는 필수입니다."),
         })
       )
       .mutation(async ({ input }) => {
-        // 제목 자동 생성 규칙 적용
         let finalTitle = input.title?.trim();
         if (!finalTitle) {
           const dateObj = new Date(input.date);
@@ -77,7 +77,7 @@ export const appRouter = router({
 
         const id = await insertHometaxNotice({
           title: finalTitle,
-          url: input.url, // 입력받은 URL 그대로 저장
+          url: input.url,
           taxType: input.taxType as any,
           docType: input.docType as any,
           date: input.date,
@@ -143,6 +143,15 @@ export const appRouter = router({
           throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "파일 정보를 DB에 저장하는 데 실패했습니다." });
         }
         return { success: true, id };
+      }),
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const success = await deleteManualFile(input.id);
+        if (!success) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "삭제 실패" });
+        }
+        return { success: true };
       }),
   }),
   // ─── 알림 ─────────────────────────────────────────────────────────────────

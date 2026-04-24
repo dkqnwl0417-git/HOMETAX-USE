@@ -281,3 +281,14 @@ export async function upsertUser(user: any): Promise<void> {
     });
   }
 }
+
+export async function deleteManualFile(id: number): Promise<boolean> {
+  const db = await getDb();
+  try {
+    await db.delete(manualFiles).where(eq(manualFiles.id, id));
+    return true;
+  } catch (err) {
+    console.error("[DB] Error deleting manual file:", err);
+    return false;
+  }
+}

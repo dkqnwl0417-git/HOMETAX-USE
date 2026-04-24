@@ -29,20 +29,29 @@ function getFileType(originalname: string): string {
 
 function uploadToCloudinary(buffer: Buffer, originalname: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    // 한글 파일명 깨짐 방지를 위해 public_id에서 한글을 제외하거나 안전하게 변환
+    // 한글 파일명 복구 (multer latin1 -> utf8)
     const safeName = Buffer.from(originalname, 'latin1').toString('utf8');
+    const ext = getFileType(safeName);
+    
+    // public_id에 확장자를 포함시켜 Cloudinary가 형식을 인식하게 함
     const publicId = `manual-files/${Date.now()}`;
     
     const stream = cloudinary.uploader.upload_stream(
       {
         resource_type: "raw",
         public_id: publicId,
-        // 원본 파일명을 보존하기 위해 content_disposition 설정
+        // fl_attachment 플래그와 원본 파일명을 명시하여 다운로드 시 파일명 유지
+        flags: "attachment",
         content_disposition: `attachment; filename="${encodeURIComponent(safeName)}"`,
       },
       (error, result) => {
         if (error) reject(error);
-        else resolve(result!.secure_url);
+        else {
+          // secure_url 뒤에 원본 파일명을 붙여서 브라우저가 파일명을 인식하기 쉽게 함
+          const url = result!.secure_url;
+          const finalUrl = url.includes('?') ? `${url}&filename=${encodeURIComponent(safeName)}` : `${url}?filename=${encodeURIComponent(safeName)}`;
+          resolve(finalUrl);
+        }
       }
     );
     const readable = Readable.from(buffer);
@@ -57,9 +66,7 @@ export function registerCloudinaryUpload(app: Express) {
         return res.status(400).json({ error: "파일이 없습니다." });
       }
 
-      // 한글 파일명 복구 (multer latin1 -> utf8)
       const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-      
       const fileUrl = await uploadToCloudinary(req.file.buffer, req.file.originalname);
       const fileType = getFileType(originalName);
 
