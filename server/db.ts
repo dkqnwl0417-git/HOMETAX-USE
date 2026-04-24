@@ -11,10 +11,18 @@ let _client: any = null;
 async function getDb() {
   if (_db) return _db;
   
-  const url = process.env.DATABASE_URL || "file:sqlite.db";
+  // 환경 변수 우선순위: DATABASE_URL -> TURSO_DATABASE_URL
+  const url = process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL || "file:sqlite.db";
   const authToken = process.env.TURSO_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN;
   
-  console.log(`[DB] Connecting to ${url.startsWith("libsql") ? "Turso" : "Local SQLite"}`);
+  if (url.startsWith("libsql")) {
+    console.log(`[DB] Connecting to Turso Database...`);
+    if (!authToken) {
+      console.warn("[DB] Warning: DATABASE_URL is libsql but AUTH_TOKEN is missing!");
+    }
+  } else {
+    console.log(`[DB] Connecting to Local SQLite (${url})`);
+  }
   
   _client = createClient({ url, authToken });
   _db = drizzle(_client, { schema });
@@ -22,15 +30,11 @@ async function getDb() {
   return _db;
 }
 
-/**
- * [최후의 수단] 서버 시작 시 테이블이 없으면 강제로 생성하는 자가 치유 로직
- */
 export async function initDb() {
   const db = await getDb();
   console.log("[DB] Starting Self-Healing Database Initialization...");
 
   const createTableQueries = [
-    // 1. Users 테이블
     `CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       open_id TEXT NOT NULL UNIQUE,
@@ -42,7 +46,6 @@ export async function initDb() {
       updated_at INTEGER,
       last_signed_in INTEGER
     )`,
-    // 2. HometaxNotices 테이블
     `CREATE TABLE IF NOT EXISTS hometax_notices (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
@@ -53,7 +56,6 @@ export async function initDb() {
       view_count INTEGER DEFAULT 0,
       created_at INTEGER
     )`,
-    // 3. ManualFiles 테이블
     `CREATE TABLE IF NOT EXISTS manual_files (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
@@ -62,7 +64,6 @@ export async function initDb() {
       uploader TEXT NOT NULL,
       created_at INTEGER
     )`,
-    // 4. Notifications 테이블
     `CREATE TABLE IF NOT EXISTS notifications (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       notice_id INTEGER,

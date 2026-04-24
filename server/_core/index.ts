@@ -1,7 +1,6 @@
 import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
-import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
@@ -13,39 +12,22 @@ import { runCrawler } from "../crawler";
 import cron from "node-cron";
 import { initDb } from "../db";
 
-function isPortAvailable(port: number): Promise<boolean> {
-  return new Promise(resolve => {
-    const server = net.createServer();
-    server.listen(port, () => {
-      server.close(() => resolve(true));
-    });
-    server.on("error", () => resolve(false));
-  });
-}
-
-async function findAvailablePort(startPort: number = 3000): Promise<number> {
-  for (let port = startPort; port < startPort + 20; port++) {
-    if (await isPortAvailable(port)) {
-      return port;
-    }
-  }
-  throw new Error(`No available port found starting from ${startPort}`);
-}
-
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
+  
+  // Configure body parser
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerCloudinaryUpload(app);
   
-  // DB 초기화 및 테이블 체크
+  // DB 초기화
   await initDb().catch(err => console.error("[DB] Init failed:", err));
-
-  // 크롤링 스케줄러: 매일 오전 9시 실행
+  
+  // 크롤링 스케줄러
   cron.schedule("0 9 * * *", async () => {
     console.log("[Cron] Running scheduled crawl...");
     try {
@@ -63,22 +45,20 @@ async function startServer() {
       createContext,
     })
   );
-  // development mode uses Vite, production mode uses static files
+
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  // Render 환경에서는 반드시 0.0.0.0으로 바인딩해야 포트 감지가 가능합니다.
+  const port = parseInt(process.env.PORT || "3000");
+  const host = "0.0.0.0"; 
 
-  if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
-  }
-
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  server.listen(port, host, () => {
+    console.log(`Server is strictly listening on ${host}:${port}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 }
 
