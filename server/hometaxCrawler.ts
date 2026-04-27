@@ -1,4 +1,3 @@
-import { chromium, Browser, Page } from "playwright";
 import { InsertHometaxNotice } from "../drizzle/schema";
 import { insertHometaxNotice, insertNotification, urlExists } from "./db";
 
@@ -49,7 +48,17 @@ interface NoticeItem {
  * 5. 테이블에서 데이터 추출
  */
 async function crawlHometaxLibraryWithPlaywright(): Promise<NoticeItem[]> {
-  let browser: Browser | null = null;
+  // 동적 import: 프로덕션 환경에서만 필요할 때 로드
+  let chromium;
+  try {
+    const playwright = await import("playwright");
+    chromium = playwright.chromium;
+  } catch (err) {
+    console.error("[Playwright Crawler] Failed to import playwright:", err);
+    return [];
+  }
+
+  let browser: any = null;
   const results: NoticeItem[] = [];
 
   try {
