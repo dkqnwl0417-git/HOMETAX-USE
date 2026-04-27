@@ -5,7 +5,6 @@ import { eq, and, gte, lte, desc, like, sql } from "drizzle-orm";
 
 let _db: any = null;
 
-export async function initDb() { await getDb(); }
 async function getDb() {
   if (_db) return _db;
   const url = process.env.DATABASE_URL || "file:sqlite.db";
@@ -13,6 +12,10 @@ async function getDb() {
   const client = createClient({ url, authToken });
   _db = drizzle(client, { schema });
   return _db;
+}
+
+export async function initDb() { 
+  await getDb(); 
 }
 
 // ─── 홈택스 전자신고 설명서 ───────────────────────────────────────────────
@@ -44,14 +47,10 @@ export async function getHometaxNotices(filters: any) {
 export async function insertHometaxNotice(data: any) {
   const db = await getDb();
   try {
-    // 중복 체크 (순수 URL로 체크)
     const existing = await db.query.hometaxNotices.findFirst({
       where: eq(schema.hometaxNotices.url, data.url)
     });
-    if (existing) {
-      console.warn("[DB] Duplicate URL found:", data.url);
-      return null;
-    }
+    if (existing) return null;
 
     const result = await db.insert(schema.hometaxNotices).values({
       title: data.title,
@@ -68,6 +67,14 @@ export async function insertHometaxNotice(data: any) {
     console.error("[DB] Error inserting notice:", err);
     return null;
   }
+}
+
+export async function urlExists(url: string) {
+  const db = await getDb();
+  const existing = await db.query.hometaxNotices.findFirst({
+    where: eq(schema.hometaxNotices.url, url)
+  });
+  return !!existing;
 }
 
 export async function incrementViewCount(id: number) {
@@ -164,6 +171,17 @@ export async function getUnreadCount() {
 export async function markAllNotificationsRead() {
   const db = await getDb();
   await db.update(schema.notifications).set({ isRead: 1 });
+}
+
+export async function insertNotification(data: any) {
+  const db = await getDb();
+  await db.insert(schema.notifications).values({
+    noticeId: data.noticeId,
+    title: data.title,
+    url: data.url,
+    isRead: data.isRead || 0,
+    createdAt: new Date()
+  });
 }
 
 // ─── 사용자 (Auth) ────────────────────────────────────────────────────────
