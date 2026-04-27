@@ -17,8 +17,58 @@ async function getDb() {
 
 export async function initDb() { 
   try {
-    await getDb(); 
-    console.log("[DB] Initialization successful");
+    const db = await getDb(); 
+    console.log("[DB] Initializing tables if not exist...");
+    
+    // 테이블 자동 생성 쿼리 (libsql 직접 실행)
+    const client = (db as any).$client || createClient({ 
+      url: process.env.DATABASE_URL || "file:sqlite.db", 
+      authToken: process.env.DATABASE_AUTH_TOKEN 
+    });
+
+    await client.execute(`CREATE TABLE IF NOT EXISTS "users" (
+      "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      "openId" text NOT NULL UNIQUE,
+      "name" text,
+      "email" text,
+      "loginMethod" text,
+      "role" text DEFAULT 'user' NOT NULL,
+      "createdAt" integer NOT NULL,
+      "updatedAt" integer NOT NULL,
+      "lastSignedIn" integer NOT NULL
+    )`);
+
+    await client.execute(`CREATE TABLE IF NOT EXISTS "hometaxNotices" (
+      "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      "title" text NOT NULL,
+      "url" text NOT NULL UNIQUE,
+      "date" text NOT NULL,
+      "taxType" text DEFAULT '기타' NOT NULL,
+      "docType" text NOT NULL,
+      "viewCount" integer DEFAULT 0 NOT NULL,
+      "createdAt" integer NOT NULL
+    )`);
+
+    await client.execute(`CREATE TABLE IF NOT EXISTS "manualFiles" (
+      "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      "title" text NOT NULL,
+      "fileUrl" text NOT NULL,
+      "fileType" text NOT NULL,
+      "uploader" text NOT NULL,
+      "createdAt" integer NOT NULL
+    )`);
+
+    await client.execute(`CREATE TABLE IF NOT EXISTS "notifications" (
+      "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      "noticeId" integer,
+      "title" text,
+      "url" text,
+      "message" text,
+      "isRead" integer DEFAULT 0 NOT NULL,
+      "createdAt" integer NOT NULL
+    )`);
+
+    console.log("[DB] Table initialization complete.");
   } catch (err) {
     console.error("[DB] Initialization failed:", err);
   }
@@ -55,7 +105,6 @@ export async function insertHometaxNotice(data: any) {
   try {
     console.log("[DB] Attempting to insert notice:", data.url);
     
-    // 1. 중복 체크 (URL 기준)
     const existing = await db.query.hometaxNotices.findFirst({
       where: eq(schema.hometaxNotices.url, data.url)
     });
@@ -65,7 +114,6 @@ export async function insertHometaxNotice(data: any) {
       return null;
     }
 
-    // 2. 삽입 (id 제외)
     const values = {
       title: data.title,
       url: data.url,
@@ -73,7 +121,7 @@ export async function insertHometaxNotice(data: any) {
       taxType: data.taxType,
       docType: data.docType,
       viewCount: 0,
-      createdAt: new Date().getTime() // 타임스탬프로 저장 (SQLite 호환성)
+      createdAt: new Date().getTime()
     };
 
     const result = await db.insert(schema.hometaxNotices).values(values).returning({ id: schema.hometaxNotices.id });
@@ -82,11 +130,13 @@ export async function insertHometaxNotice(data: any) {
       console.log("[DB] Successfully inserted notice, ID:", result[0].id);
       return result[0].id;
     }
-    
-    console.error("[DB] Insert returned no result");
     return null;
-  } catch (err) {
+  } catch (err: any) {
     console.error("[DB] Error in insertHometaxNotice:", err);
+    // 테이블이 없는 경우를 대비해 초기화 재시도
+    if (err.message?.includes("no such table")) {
+      await initDb();
+    }
     return null;
   }
 }
@@ -99,7 +149,6 @@ export async function urlExists(url: string) {
     });
     return !!existing;
   } catch (err) {
-    console.error("[DB] Error in urlExists:", err);
     return false;
   }
 }
@@ -153,27 +202,19 @@ export async function getManualFiles(filters: any) {
 export async function insertManualFile(data: any) {
   const db = await getDb();
   try {
-    console.log("[DB] Attempting to insert manual file:", data.title);
-    
     const values = {
       title: data.title,
       fileUrl: data.fileUrl,
       fileType: data.fileType,
       uploader: data.uploader,
-      createdAt: new Date().getTime() // 타임스탬프로 저장
+      createdAt: new Date().getTime()
     };
-
     const result = await db.insert(schema.manualFiles).values(values).returning({ id: schema.manualFiles.id });
-    
-    if (result && result.length > 0) {
-      console.log("[DB] Successfully inserted manual file, ID:", result[0].id);
-      return result[0].id;
-    }
-    
-    console.error("[DB] Insert manual file returned no result");
+    if (result && result.length > 0) return result[0].id;
     return null;
-  } catch (err) {
+  } catch (err: any) {
     console.error("[DB] Error in insertManualFile:", err);
+    if (err.message?.includes("no such table")) await initDb();
     return null;
   }
 }
