@@ -9,13 +9,19 @@ async function getDb() {
   if (_db) return _db;
   const url = process.env.DATABASE_URL || "file:sqlite.db";
   const authToken = process.env.DATABASE_AUTH_TOKEN;
+  console.log("[DB] Connecting to:", url);
   const client = createClient({ url, authToken });
   _db = drizzle(client, { schema });
   return _db;
 }
 
 export async function initDb() { 
-  await getDb(); 
+  try {
+    await getDb(); 
+    console.log("[DB] Initialization successful");
+  } catch (err) {
+    console.error("[DB] Initialization failed:", err);
+  }
 }
 
 // ─── 홈택스 전자신고 설명서 ───────────────────────────────────────────────
@@ -47,34 +53,55 @@ export async function getHometaxNotices(filters: any) {
 export async function insertHometaxNotice(data: any) {
   const db = await getDb();
   try {
+    console.log("[DB] Attempting to insert notice:", data.url);
+    
+    // 1. 중복 체크 (URL 기준)
     const existing = await db.query.hometaxNotices.findFirst({
       where: eq(schema.hometaxNotices.url, data.url)
     });
-    if (existing) return null;
+    
+    if (existing) {
+      console.warn("[DB] Duplicate URL detected:", data.url);
+      return null;
+    }
 
-    const result = await db.insert(schema.hometaxNotices).values({
+    // 2. 삽입 (id 제외)
+    const values = {
       title: data.title,
       url: data.url,
       date: data.date,
       taxType: data.taxType,
       docType: data.docType,
       viewCount: 0,
-      createdAt: new Date()
-    }).returning({ id: schema.hometaxNotices.id });
+      createdAt: new Date().getTime() // 타임스탬프로 저장 (SQLite 호환성)
+    };
 
-    return result[0]?.id || null;
+    const result = await db.insert(schema.hometaxNotices).values(values).returning({ id: schema.hometaxNotices.id });
+    
+    if (result && result.length > 0) {
+      console.log("[DB] Successfully inserted notice, ID:", result[0].id);
+      return result[0].id;
+    }
+    
+    console.error("[DB] Insert returned no result");
+    return null;
   } catch (err) {
-    console.error("[DB] Error inserting notice:", err);
+    console.error("[DB] Error in insertHometaxNotice:", err);
     return null;
   }
 }
 
 export async function urlExists(url: string) {
-  const db = await getDb();
-  const existing = await db.query.hometaxNotices.findFirst({
-    where: eq(schema.hometaxNotices.url, url)
-  });
-  return !!existing;
+  try {
+    const db = await getDb();
+    const existing = await db.query.hometaxNotices.findFirst({
+      where: eq(schema.hometaxNotices.url, url)
+    });
+    return !!existing;
+  } catch (err) {
+    console.error("[DB] Error in urlExists:", err);
+    return false;
+  }
 }
 
 export async function incrementViewCount(id: number) {
@@ -126,17 +153,27 @@ export async function getManualFiles(filters: any) {
 export async function insertManualFile(data: any) {
   const db = await getDb();
   try {
-    const result = await db.insert(schema.manualFiles).values({
+    console.log("[DB] Attempting to insert manual file:", data.title);
+    
+    const values = {
       title: data.title,
       fileUrl: data.fileUrl,
       fileType: data.fileType,
       uploader: data.uploader,
-      createdAt: new Date()
-    }).returning({ id: schema.manualFiles.id });
+      createdAt: new Date().getTime() // 타임스탬프로 저장
+    };
+
+    const result = await db.insert(schema.manualFiles).values(values).returning({ id: schema.manualFiles.id });
     
-    return result[0]?.id || null;
+    if (result && result.length > 0) {
+      console.log("[DB] Successfully inserted manual file, ID:", result[0].id);
+      return result[0].id;
+    }
+    
+    console.error("[DB] Insert manual file returned no result");
+    return null;
   } catch (err) {
-    console.error("[DB] Error inserting manual file:", err);
+    console.error("[DB] Error in insertManualFile:", err);
     return null;
   }
 }
@@ -174,14 +211,18 @@ export async function markAllNotificationsRead() {
 }
 
 export async function insertNotification(data: any) {
-  const db = await getDb();
-  await db.insert(schema.notifications).values({
-    noticeId: data.noticeId,
-    title: data.title,
-    url: data.url,
-    isRead: data.isRead || 0,
-    createdAt: new Date()
-  });
+  try {
+    const db = await getDb();
+    await db.insert(schema.notifications).values({
+      noticeId: data.noticeId,
+      title: data.title,
+      url: data.url,
+      isRead: data.isRead || 0,
+      createdAt: new Date().getTime()
+    });
+  } catch (err) {
+    console.error("[DB] Error in insertNotification:", err);
+  }
 }
 
 // ─── 사용자 (Auth) ────────────────────────────────────────────────────────
@@ -194,9 +235,18 @@ export async function upsertUser(data: any) {
   const db = await getDb();
   const existing = await getUserByOpenId(data.openId);
   if (existing) {
-    await db.update(schema.users).set(data).where(eq(schema.users.openId, data.openId));
+    await db.update(schema.users).set({
+      ...data,
+      updatedAt: new Date().getTime(),
+      lastSignedIn: new Date().getTime()
+    }).where(eq(schema.users.openId, data.openId));
     return existing;
   }
-  const result = await db.insert(schema.users).values(data).returning();
+  const result = await db.insert(schema.users).values({
+    ...data,
+    createdAt: new Date().getTime(),
+    updatedAt: new Date().getTime(),
+    lastSignedIn: new Date().getTime()
+  }).returning();
   return result[0];
 }

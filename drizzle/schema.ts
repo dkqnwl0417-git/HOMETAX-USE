@@ -1,4 +1,4 @@
-import { text, sqliteTable, integer, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -6,59 +6,47 @@ export const users = sqliteTable("users", {
   name: text("name"),
   email: text("email"),
   loginMethod: text("loginMethod"),
-  role: text("role", { enum: ["user", "admin"] }).default("user").notNull(),
-  createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
-  updatedAt: integer("updatedAt", { mode: "timestamp" }).notNull(),
-  lastSignedIn: integer("lastSignedIn", { mode: "timestamp" }).notNull(),
+  role: text("role").notNull().default("user"),
+  createdAt: integer("createdAt").notNull(),
+  updatedAt: integer("updatedAt").notNull(),
+  lastSignedIn: integer("lastSignedIn").notNull(),
 });
 
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
+export const hometaxNotices = sqliteTable("hometaxNotices", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  title: text("title").notNull(),
+  url: text("url").notNull().unique(),
+  date: text("date").notNull(), // "YYYY-MM-DD" 형식 문자열 유지
+  taxType: text("taxType").notNull().default("기타"),
+  docType: text("docType").notNull(),
+  viewCount: integer("viewCount").notNull().default(0),
+  createdAt: integer("createdAt").notNull(), // 타임스탬프 정수형
+});
 
-// 홈택스 전자신고 설명서 공지사항
-export const hometaxNotices = sqliteTable(
-  "hometaxNotices",
-  {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    title: text("title").notNull(),
-    url: text("url").notNull().unique(),
-    date: text("date").notNull(), // YYYY-MM-DD
-    taxType: text("taxType", { enum: ["부가가치세", "종합소득세", "원천세", "기타"] }).default("기타").notNull(),
-    docType: text("docType", { enum: ["파일설명서", "전산매체 제출요령"] }).notNull(),
-    viewCount: integer("viewCount").default(0).notNull(),
-    createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
-  },
-  (table) => ({
-    dateIdx: index("idx_hometax_date").on(table.date),
-    taxTypeIdx: index("idx_hometax_taxType").on(table.taxType),
-  })
-);
-
-export type HometaxNotice = typeof hometaxNotices.$inferSelect;
-export type InsertHometaxNotice = typeof hometaxNotices.$inferInsert;
-
-// 내부 메뉴얼 자료실
 export const manualFiles = sqliteTable("manualFiles", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   title: text("title").notNull(),
   fileUrl: text("fileUrl").notNull(),
-  fileType: text("fileType").notNull(), // pdf, doc, docx, xls, xlsx, hwp
+  fileType: text("fileType").notNull(),
   uploader: text("uploader").notNull(),
-  createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  createdAt: integer("createdAt").notNull(), // 타임스탬프 정수형
 });
 
-export type ManualFile = typeof manualFiles.$inferSelect;
-export type InsertManualFile = typeof manualFiles.$inferInsert;
-
-// 알림
 export const notifications = sqliteTable("notifications", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  noticeId: integer("noticeId").notNull(),
-  title: text("title").notNull(),
-  url: text("url").notNull(),
-  isRead: integer("isRead").default(0).notNull(), // 0: 미읽음, 1: 읽음
-  createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
+  noticeId: integer("noticeId"),
+  title: text("title"),
+  url: text("url"),
+  message: text("message"),
+  isRead: integer("isRead").notNull().default(0),
+  createdAt: integer("createdAt").notNull(), // 타임스탬프 정수형
 });
 
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+export type HometaxNotice = typeof hometaxNotices.$inferSelect;
+export type InsertHometaxNotice = typeof hometaxNotices.$inferInsert;
+export type ManualFile = typeof manualFiles.$inferSelect;
+export type InsertManualFile = typeof manualFiles.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
