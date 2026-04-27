@@ -30,7 +30,6 @@ function getFileType(originalname: string): string {
 
 function uploadToCloudinary(buffer: Buffer, originalname: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const safeName = Buffer.from(originalname, 'latin1').toString('utf8');
     const publicId = `manual-files/${Date.now()}`;
     
     const stream = cloudinary.uploader.upload_stream(
@@ -55,7 +54,8 @@ export function registerCloudinaryUpload(app: Express) {
       if (!req.file) {
         return res.status(400).json({ error: "파일이 없습니다." });
       }
-
+      
+      // 파일명 인코딩 문제 해결 (한글 깨짐 방지)
       const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
       const fileUrl = await uploadToCloudinary(req.file.buffer, req.file.originalname);
       const fileType = getFileType(originalName);
@@ -86,15 +86,47 @@ export function registerCloudinaryUpload(app: Express) {
         responseType: 'stream'
       });
 
-      // 브라우저에 강제로 파일명과 확장자를 주입하는 헤더 설정
       const decodedFilename = decodeURIComponent(filename as string);
+      
+      // 브라우저에서 파일명 유지하도록 헤더 설정
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(decodedFilename)}"`);
       res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
-
+      
       response.data.pipe(res);
     } catch (err) {
       console.error("[Download Proxy] Error:", err);
       res.status(500).send("파일 다운로드 중 오류가 발생했습니다.");
     }
+  });
+
+  // 홈택스 URL 우회 리다이렉트 엔드포인트
+  app.get("/api/hometax-view", (req: any, res: any) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).send("URL이 필요합니다.");
+
+    const decodedUrl = decodeURIComponent(url as string);
+    
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="referrer" content="no-referrer">
+        <title>홈택스 연결 중...</title>
+        <script>
+          window.onload = function() {
+            const a = document.createElement('a');
+            a.href = "${decodedUrl}";
+            a.rel = "noreferrer";
+            document.body.appendChild(a);
+            a.click();
+          };
+        </script>
+      </head>
+      <body>
+        <p>홈택스로 안전하게 연결 중입니다. 잠시만 기다려주세요...</p>
+      </body>
+      </html>
+    `);
   });
 }

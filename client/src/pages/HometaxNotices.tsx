@@ -122,7 +122,7 @@ export default function HometaxNotices() {
   const handleTitleClick = (id: number, url: string) => {
     incrementView.mutate({ id });
     if (url && url.startsWith("http")) {
-      window.open(url, "_blank", "noopener,noreferrer");
+      window.open(`/api/hometax-view?url=${encodeURIComponent(url)}`, "_blank", "noopener,noreferrer");
     } else {
       toast.error("유효하지 않은 링크입니다.");
     }

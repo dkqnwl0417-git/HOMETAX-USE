@@ -23,17 +23,8 @@ export const hometaxNotices = sqliteTable(
     title: text("title").notNull(),
     url: text("url").notNull().unique(),
     date: text("date").notNull(), // YYYY-MM-DD
-    taxType: text("taxType", {
-      enum: ["부가가치세", "종합소득세", "원천세", "기타"],
-    })
-      .default("기타")
-      .notNull(),
-    // ★ "기타" 추가 — 프론트 DOC_TYPES와 일치
-    docType: text("docType", {
-      enum: ["파일설명서", "전산매체 제출요령", "기타"],
-    })
-      .default("파일설명서")
-      .notNull(),
+    taxType: text("taxType", { enum: ["부가가치세", "종합소득세", "원천세", "기타"] }).default("기타").notNull(),
+    docType: text("docType", { enum: ["파일설명서", "전산매체 제출요령"] }).notNull(),
     viewCount: integer("viewCount").default(0).notNull(),
     createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
   },
@@ -52,8 +43,6 @@ export const manualFiles = sqliteTable("manualFiles", {
   title: text("title").notNull(),
   fileUrl: text("fileUrl").notNull(),
   fileType: text("fileType").notNull(), // pdf, doc, docx, xls, xlsx, hwp
-  // ★ 원본 파일명 보존 (다운로드 시 파일명·확장자 그대로 제공)
-  originalName: text("originalName").notNull().default(""),
   uploader: text("uploader").notNull(),
   createdAt: integer("createdAt", { mode: "timestamp" }).notNull(),
 });

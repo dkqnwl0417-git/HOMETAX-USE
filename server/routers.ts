@@ -78,17 +78,17 @@ export const appRouter = router({
         const id = await insertHometaxNotice({
           title: finalTitle,
           url: input.url,
-          taxType: input.taxType,
-          docType: input.docType,
+          taxType: input.taxType as any,
+          docType: input.docType as any,
           date: input.date,
           viewCount: 0,
           createdAt: new Date(),
         });
-
+        
         if (id === null) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: "이미 존재하는 URL이거나 저장에 실패했습니다. (중복 등록 확인 필요)",
+          throw new TRPCError({ 
+            code: "CONFLICT", 
+            message: "이미 존재하는 URL이거나 저장에 실패했습니다. (중복 등록 확인 필요)" 
           });
         }
         return { success: true, id };
@@ -105,7 +105,7 @@ export const appRouter = router({
     deleteAll: publicProcedure.mutation(async () => {
       const count = await deleteAllHometaxNotices();
       return { success: true, deleted: count };
-    }),
+    })
   }),
   // ─── 내부 메뉴얼 자료실 ───────────────────────────────────────────────────
   manual: router({
@@ -132,21 +132,15 @@ export const appRouter = router({
       )
       .mutation(async ({ input }) => {
         const title = input.title?.trim() || input.originalName.replace(/\.[^/.]+$/, "");
-
         const id = await insertManualFile({
           title,
           fileUrl: input.fileUrl,
           fileType: input.fileType,
-          originalName: input.originalName, // ★ 원본 파일명 전달
           uploader: input.uploader,
           createdAt: new Date(),
         });
-
         if (id === null) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "파일 정보를 DB에 저장하는 데 실패했습니다.",
-          });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "파일 정보를 DB에 저장하는 데 실패했습니다." });
         }
         return { success: true, id };
       }),

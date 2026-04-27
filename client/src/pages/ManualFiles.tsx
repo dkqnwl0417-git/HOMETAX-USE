@@ -6,14 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Search,
-  Upload,
-  FileText,
-  Download,
-  Trash2,
-  FileIcon,
-  Loader2,
+import { 
+  Search, 
+  Upload, 
+  FileText, 
+  Download, 
+  Trash2, 
+  FileIcon, 
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -39,13 +39,13 @@ export default function ManualFiles() {
       setIsUploading(false);
     },
     onError: (err) => {
-      toast({
-        title: "등록 실패",
+      toast({ 
+        title: "등록 실패", 
         description: err.message || "파일 정보를 DB에 저장하는 데 실패했습니다.",
-        variant: "destructive",
+        variant: "destructive" 
       });
       setIsUploading(false);
-    },
+    }
   });
 
   const deleteMutation = trpc.manual.delete.useMutation({
@@ -55,81 +55,66 @@ export default function ManualFiles() {
     },
     onError: (err) => {
       toast({ title: "삭제 실패", description: err.message, variant: "destructive" });
-    },
+    }
   });
 
-  const onDrop = useCallback(
-    async (acceptedFiles: File[]) => {
-      if (acceptedFiles.length === 0) return;
-      if (!uploaderName.trim()) {
-        toast({
-          title: "알림",
-          description: "등록자 이름을 먼저 입력해주세요.",
-          variant: "destructive",
-        });
-        return;
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+    if (!uploaderName.trim()) {
+      toast({ title: "알림", description: "등록자 이름을 먼저 입력해주세요.", variant: "destructive" });
+      return;
+    }
+
+    const file = acceptedFiles[0];
+    setIsUploading(true);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "업로드 실패");
       }
 
-      const file = acceptedFiles[0];
-      setIsUploading(true);
+      const result = await response.json();
+      
+      uploadMutation.mutate({
+        title: file.name.replace(/\.[^/.]+$/, ""),
+        fileUrl: result.fileUrl,
+        fileType: result.fileType,
+        originalName: result.originalName,
+        uploader: uploaderName,
+      });
+    } catch (err: any) {
+      toast({ title: "업로드 실패", description: err.message, variant: "destructive" });
+      setIsUploading(false);
+    }
+  }, [uploaderName, uploadMutation, toast]);
 
-      const formData = new FormData();
-      formData.append("file", file);
-
-      try {
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "업로드 실패");
-        }
-
-        const result = await response.json();
-
-        uploadMutation.mutate({
-          title: file.name.replace(/\.[^/.]+$/, ""),
-          fileUrl: result.fileUrl,
-          fileType: result.fileType,
-          originalName: result.originalName, // ★ 서버에서 반환한 원본 파일명 사용
-          uploader: uploaderName,
-        });
-      } catch (err: any) {
-        toast({ title: "업로드 실패", description: err.message, variant: "destructive" });
-        setIsUploading(false);
-      }
-    },
-    [uploaderName, uploadMutation, toast]
-  );
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
     onDrop,
     multiple: false,
     accept: {
-      "application/pdf": [".pdf"],
-      "application/msword": [".doc"],
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-      "application/vnd.ms-excel": [".xls"],
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
-      "application/x-hwp": [".hwp"],
-    },
+      'application/pdf': ['.pdf'],
+      'application/msword': ['.doc'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'application/vnd.ms-excel': ['.xls'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/x-hwp': ['.hwp'],
+    }
   });
 
-  // ★ 서버 프록시(/api/download)를 통해 원본 파일명·확장자 그대로 다운로드
-  const handleDownload = (fileUrl: string, originalName: string, fileType: string) => {
-    // originalName이 있으면 그대로, 없으면 title + 확장자로 폴백
-    const filename = originalName && originalName.trim() !== ""
-      ? originalName
-      : `file.${fileType}`;
-
-    const proxyUrl =
-      `/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(filename)}`;
-
-    const link = document.createElement("a");
-    link.href = proxyUrl;
-    link.setAttribute("download", filename);
+  const handleDownload = (url: string, filename: string) => {
+    const downloadUrl = url.includes('?') ? `${url}&dl=true` : `${url}?dl=true`;
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -162,19 +147,19 @@ export default function ManualFiles() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">등록자 성함</label>
-                <Input
-                  placeholder="이름을 입력하세요"
+                <Input 
+                  placeholder="이름을 입력하세요" 
                   value={uploaderName}
                   onChange={(e) => setUploaderName(e.target.value)}
                 />
               </div>
-
-              <div
-                {...getRootProps()}
+              
+              <div 
+                {...getRootProps()} 
                 className={`
                   border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-                  ${isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50"}
-                  ${isUploading ? "opacity-50 pointer-events-none" : ""}
+                  ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}
+                  ${isUploading ? 'opacity-50 pointer-events-none' : ''}
                 `}
               >
                 <input {...getInputProps()} />
@@ -200,8 +185,8 @@ export default function ManualFiles() {
         <div className="lg:col-span-2 space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="자료 제목으로 검색..."
+            <Input 
+              placeholder="자료 제목으로 검색..." 
               className="pl-10"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
@@ -227,12 +212,9 @@ export default function ManualFiles() {
                         <FileIcon className="w-6 h-6 text-primary" />
                       </div>
                       <div className="overflow-hidden">
-                        <h3
+                        <h3 
                           className="font-semibold truncate cursor-pointer hover:text-primary transition-colors"
-                          // ★ originalName 기반으로 다운로드
-                          onClick={() =>
-                            handleDownload(file.fileUrl, file.originalName, file.fileType)
-                          }
+                          onClick={() => handleDownload(file.fileUrl, file.title + '.' + file.fileType)}
                         >
                           {file.title}
                         </h3>
@@ -248,22 +230,19 @@ export default function ManualFiles() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Button
-                        variant="ghost"
+                      <Button 
+                        variant="ghost" 
                         size="icon"
                         className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
                         onClick={() => handleDelete(file.id, file.title)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
                         className="gap-2"
-                        // ★ originalName 기반으로 다운로드
-                        onClick={() =>
-                          handleDownload(file.fileUrl, file.originalName, file.fileType)
-                        }
+                        onClick={() => handleDownload(file.fileUrl, file.title + '.' + file.fileType)}
                       >
                         <Download className="w-4 h-4" />
                         다운로드
