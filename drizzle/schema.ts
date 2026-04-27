@@ -28,6 +28,8 @@ export const manualFiles = sqliteTable("manualFiles", {
   title: text("title").notNull(),
   fileUrl: text("fileUrl").notNull(),
   fileType: text("fileType").notNull(),
+  originalName: text("originalName").notNull(), // 원본 파일명 저장
+  mimeType: text("mimeType").notNull().default("application/octet-stream"), // MIME 타입
   uploader: text("uploader").notNull(),
   createdAt: integer("createdAt").notNull(), // 타임스탬프 정수형
 });

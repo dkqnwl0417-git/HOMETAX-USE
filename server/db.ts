@@ -54,6 +54,8 @@ export async function initDb() {
       "title" text NOT NULL,
       "fileUrl" text NOT NULL,
       "fileType" text NOT NULL,
+      "originalName" text NOT NULL,
+      "mimeType" text DEFAULT 'application/octet-stream' NOT NULL,
       "uploader" text NOT NULL,
       "createdAt" integer NOT NULL
     )`);
@@ -206,6 +208,8 @@ export async function insertManualFile(data: any) {
       title: data.title,
       fileUrl: data.fileUrl,
       fileType: data.fileType,
+      originalName: data.originalName,
+      mimeType: data.mimeType || "application/octet-stream",
       uploader: data.uploader,
       createdAt: new Date().getTime()
     };

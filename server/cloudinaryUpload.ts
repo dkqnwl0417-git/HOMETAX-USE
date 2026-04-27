@@ -47,8 +47,47 @@ function uploadToCloudinary(buffer: Buffer, originalname: string): Promise<strin
   });
 }
 
+/**
+ * 파일명을 RFC 5987 형식으로 인코딩 (한글 지원)
+ */
+function encodeFileName(fileName: string): string {
+  try {
+    // UTF-8로 인코딩된 파일명
+    const utf8Encoded = Buffer.from(fileName, "utf-8").toString("utf-8");
+    return `UTF-8''${encodeURIComponent(utf8Encoded)}`;
+  } catch (e) {
+    return encodeURIComponent(fileName);
+  }
+}
+
+/**
+ * MIME 타입 매핑
+ */
+function getMimeType(fileType: string, mimeTypeFromDb?: string): string {
+  if (mimeTypeFromDb) return mimeTypeFromDb;
+  
+  const mimeMap: Record<string, string> = {
+    pdf: "application/pdf",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    hwp: "application/x-hwp",
+    hwpx: "application/vnd.hancom.hwpx",
+    ppt: "application/vnd.ms-powerpoint",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    txt: "text/plain",
+    csv: "text/csv",
+    zip: "application/zip",
+    rar: "application/x-rar-compressed",
+    "7z": "application/x-7z-compressed",
+  };
+  
+  return mimeMap[fileType.toLowerCase()] || "application/octet-stream";
+}
+
 export function registerCloudinaryUpload(app: Express) {
-  // 업로드 엔드포인트
+  // ─── 파일 업로드 엔드포인트 ──────────────────────────────────────────
   app.post("/api/upload", upload.single("file"), async (req: any, res: any) => {
     try {
       if (!req.file) {
@@ -57,14 +96,30 @@ export function registerCloudinaryUpload(app: Express) {
       
       // 파일명 인코딩 문제 해결 (한글 깨짐 방지)
       const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-      const fileUrl = await uploadToCloudinary(req.file.buffer, req.file.originalname);
+      
+      // 바이너리 데이터 그대로 사용 (절대 문자열로 변환하지 말 것)
+      const fileBuffer = req.file.buffer;
+      
+      if (!Buffer.isBuffer(fileBuffer)) {
+        return res.status(400).json({ error: "파일 데이터가 손상되었습니다." });
+      }
+      
+      console.log(`[Upload] Starting upload for file: ${originalName} (${fileBuffer.length} bytes)`);
+      
+      const fileUrl = await uploadToCloudinary(fileBuffer, req.file.originalname);
       const fileType = getFileType(originalName);
-
+      
+      // MIME 타입 결정
+      const mimeType = getMimeType(fileType, req.file.mimetype);
+      
+      console.log(`[Upload] Success: ${originalName} → ${fileUrl}`);
+      
       return res.json({
         success: true,
         fileUrl,
         fileType,
         originalName: originalName,
+        mimeType: mimeType,
       });
     } catch (err: any) {
       console.error("[Upload] Error:", err);
@@ -72,38 +127,84 @@ export function registerCloudinaryUpload(app: Express) {
     }
   });
 
-  // 다운로드 프록시 엔드포인트 (파일명/확장자 보존 핵심)
+  // ─── 파일 다운로드 프록시 엔드포인트 (핵심) ──────────────────────────
+  /**
+   * 사용법:
+   * /api/download?url=<cloudinary_url>&filename=<파일명>&mimeType=<MIME타입>
+   * 
+   * 예시:
+   * /api/download?url=https://res.cloudinary.com/...&filename=문서.pdf&mimeType=application/pdf
+   */
   app.get("/api/download", async (req: any, res: any) => {
-    const { url, filename } = req.query;
+    const { url, filename, mimeType } = req.query;
+    
     if (!url || !filename) {
-      return res.status(400).send("URL과 파일명이 필요합니다.");
+      return res.status(400).json({ error: "URL과 파일명이 필요합니다." });
     }
 
     try {
+      const decodedFilename = decodeURIComponent(filename as string);
+      const finalMimeType = mimeType || "application/octet-stream";
+      
+      console.log(`[Download] Downloading: ${decodedFilename} (${finalMimeType})`);
+      
+      // Cloudinary URL에서 파일 다운로드
       const response = await axios({
-        method: 'get',
+        method: "get",
         url: url as string,
-        responseType: 'stream'
+        responseType: "stream",
+        timeout: 30000,
       });
 
-      const decodedFilename = decodeURIComponent(filename as string);
+      // 응답 헤더 설정 (핵심!)
+      // 1. Content-Type: 파일 형식 인식
+      res.setHeader("Content-Type", finalMimeType);
       
-      // 브라우저에서 파일명 유지하도록 헤더 설정
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(decodedFilename)}"`);
-      res.setHeader('Content-Type', response.headers['content-type'] || 'application/octet-stream');
+      // 2. Content-Disposition: 파일명 보존 (RFC 5987 형식 + 일반 형식 병행)
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${decodedFilename}"; filename*=${encodeFileName(decodedFilename)}`
+      );
       
+      // 3. Content-Length: 파일 크기
+      if (response.headers["content-length"]) {
+        res.setHeader("Content-Length", response.headers["content-length"]);
+      }
+      
+      // 4. 캐시 제어
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      
+      // 스트림 파이프
       response.data.pipe(res);
-    } catch (err) {
-      console.error("[Download Proxy] Error:", err);
-      res.status(500).send("파일 다운로드 중 오류가 발생했습니다.");
+      
+      // 에러 처리
+      response.data.on("error", (err: any) => {
+        console.error("[Download] Stream error:", err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: "파일 다운로드 중 오류가 발생했습니다." });
+        }
+      });
+      
+      res.on("error", (err: any) => {
+        console.error("[Download] Response error:", err);
+      });
+      
+    } catch (err: any) {
+      console.error("[Download] Error:", err);
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: err.message || "파일 다운로드 중 오류가 발생했습니다.",
+        });
+      }
     }
   });
 
-  // 홈택스 URL 우회 리다이렉트 엔드포인트
+  // ─── 홈택스 URL 우회 리다이렉트 엔드포인트 ────────────────────────────
   app.get("/api/hometax-view", (req: any, res: any) => {
     const { url } = req.query;
     if (!url) return res.status(400).send("URL이 필요합니다.");
-
     const decodedUrl = decodeURIComponent(url as string);
     
     res.send(`

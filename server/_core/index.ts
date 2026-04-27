@@ -23,7 +23,7 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerCloudinaryUpload(app);
-  
+    
   // DB 초기화
   await initDb().catch(err => console.error("[DB] Init failed:", err));
   

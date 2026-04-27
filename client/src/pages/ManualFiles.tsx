@@ -110,8 +110,9 @@ export default function ManualFiles() {
     }
   });
 
-  const handleDownload = (url: string, filename: string) => {
-    const downloadUrl = url.includes('?') ? `${url}&dl=true` : `${url}?dl=true`;
+  const handleDownload = (url: string, filename: string, mimeType?: string) => {
+    // API 다운로드 엔드포인트를 통한 다운로드 (파일명과 MIME 타입 보존)
+    const downloadUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}${mimeType ? `&mimeType=${encodeURIComponent(mimeType)}` : ''}`;
     const link = document.createElement('a');
     link.href = downloadUrl;
     link.setAttribute('download', filename);
@@ -214,7 +215,7 @@ export default function ManualFiles() {
                       <div className="overflow-hidden">
                         <h3 
                           className="font-semibold truncate cursor-pointer hover:text-primary transition-colors"
-                          onClick={() => handleDownload(file.fileUrl, file.title + '.' + file.fileType)}
+                          onClick={() => handleDownload(file.fileUrl, `${file.title}.${file.fileType}`, file.mimeType || "application/octet-stream")}
                         >
                           {file.title}
                         </h3>
@@ -242,7 +243,7 @@ export default function ManualFiles() {
                         variant="outline" 
                         size="sm" 
                         className="gap-2"
-                        onClick={() => handleDownload(file.fileUrl, file.title + '.' + file.fileType)}
+                        onClick={() => handleDownload(file.fileUrl, `${file.title}.${file.fileType}`, file.mimeType || "application/octet-stream")}
                       >
                         <Download className="w-4 h-4" />
                         다운로드

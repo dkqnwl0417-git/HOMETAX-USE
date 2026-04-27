@@ -17,7 +17,7 @@ import {
   markAllNotificationsRead,
   deleteManualFile,
 } from "./db";
-import { runCrawler } from "./crawler";
+import { runHometaxCrawler } from "./hometaxCrawler";
 
 export const appRouter = router({
   system: systemRouter,
@@ -52,7 +52,7 @@ export const appRouter = router({
         return { success: true };
       }),
     crawl: publicProcedure.mutation(async () => {
-      const result = await runCrawler(true);
+      const result = await runHometaxCrawler(true);
       return result;
     }),
     create: publicProcedure
@@ -127,6 +127,7 @@ export const appRouter = router({
           fileUrl: z.string().min(1),
           fileType: z.string().min(1),
           originalName: z.string().min(1),
+          mimeType: z.string().optional(),
           uploader: z.string().min(1, "등록자 이름은 필수입니다."),
         })
       )
@@ -136,6 +137,8 @@ export const appRouter = router({
           title,
           fileUrl: input.fileUrl,
           fileType: input.fileType,
+          originalName: input.originalName,
+          mimeType: input.mimeType,
           uploader: input.uploader,
           createdAt: new Date(),
         });
