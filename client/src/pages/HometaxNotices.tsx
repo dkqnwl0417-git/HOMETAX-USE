@@ -1,487 +1,308 @@
-import { useState, useMemo } from "react";
-import { 
-  ExternalLink, 
-  Eye, 
-  Search, 
-  RefreshCw, 
-  ChevronLeft, 
-  ChevronRight, 
-  Filter, 
-  Trash2, 
-  Plus, 
-  X, 
-  Loader2,
-  Link as LinkIcon,
-  Calendar as CalendarIcon
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-
-const TAX_TYPES = ["전체", "부가가치세", "종합소득세", "원천세", "기타"];
-const DOC_TYPES = ["전체", "파일설명서", "전산매체 제출요령", "기타"];
-const PAGE_SIZE = 20;
-
-function TaxBadge({ type }: { type: string }) {
-  const cls = {
-    부가가치세: "bg-blue-50 text-blue-700 border-blue-100",
-    종합소득세: "bg-emerald-50 text-emerald-700 border-emerald-100",
-    원천세: "bg-amber-50 text-amber-700 border-amber-100",
-    기타: "bg-gray-100 text-gray-600 border-gray-200",
-  }[type] ?? "bg-gray-100 text-gray-600 border-gray-200";
-  return (
-    <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold border", cls)}>
-      {type}
-    </span>
-  );
-}
-
-function DocBadge({ type }: { type: string }) {
-  const cls = {
-    "파일설명서": "bg-pink-50 text-pink-700 border-pink-100",
-    "전산매체 제출요령": "bg-violet-50 text-violet-700 border-violet-100",
-    "기타": "bg-gray-100 text-gray-600 border-gray-200",
-  }[type] ?? "bg-gray-100 text-gray-600 border-gray-200";
-  return (
-    <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold border", cls)}>
-      {type}
-    </span>
-  );
-}
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Card, CardContent } from "@/components/ui/card.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select.tsx";
+import { 
+  Search, 
+  ExternalLink, 
+  RefreshCw, 
+  Trash2,
+  Calendar as CalendarIcon,
+  Plus
+} from "lucide-react";
+import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger,
+  DialogFooter
+} from "@/components/ui/dialog.tsx";
+import { Calendar } from "@/components/ui/calendar.tsx";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.tsx";
 
 export default function HometaxNotices() {
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [taxType, setTaxType] = useState("전체");
-  const [docType, setDocType] = useState("전체");
+  const [taxType, setTaxType] = useState<string>("all");
+  const [docType, setDocType] = useState<string>("all");
   const [page, setPage] = useState(1);
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const { toast } = useToast();
 
-  // Create form state
-  const [newTitle, setNewTitle] = useState("");
   const [newUrl, setNewUrl] = useState("");
-  const [newTaxType, setNewTaxType] = useState("부가가치세");
+  const [newTaxType, setNewTaxType] = useState("기타");
   const [newDocType, setNewDocType] = useState("파일설명서");
-  const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
+  const [newDate, setNewDate] = useState<Date>(new Date());
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const queryInput = useMemo(
-    () => ({
-      startDate: startDate || undefined,
-      endDate: endDate || undefined,
-      taxType: taxType === "전체" ? undefined : taxType,
-      docType: docType === "전체" ? undefined : docType,
-      page,
-      pageSize: PAGE_SIZE,
-    }),
-    [startDate, endDate, taxType, docType, page]
-  );
+  const utils = trpc.useContext();
+  const { data, isLoading } = trpc.hometax.list.useQuery({
+    taxType: taxType === "all" ? undefined : taxType,
+    docType: docType === "all" ? undefined : docType,
+    page,
+    pageSize: 15,
+  });
 
-  const { data, isLoading, refetch } = trpc.hometax.list.useQuery(queryInput);
-  const incrementView = trpc.hometax.incrementView.useMutation();
-  
-  const createMutation = trpc.hometax.create.useMutation({
-    onSuccess: () => {
-      toast.success("성공적으로 등록되었습니다.");
-      setShowCreateForm(false);
-      setNewTitle("");
-      setNewUrl("");
-      refetch();
+  const crawlMutation = trpc.hometax.crawl.useMutation({
+    onSuccess: (res) => {
+      toast({ 
+        title: "수집 완료", 
+        description: `새로운 자료 ${res.inserted}건이 등록되었습니다.` 
+      });
+      utils.hometax.list.invalidate();
     },
-    onError: (err) => toast.error("등록 실패: " + err.message),
+    onError: () => {
+      toast({ title: "수집 실패", description: "홈택스 연결 중 오류가 발생했습니다.", variant: "destructive" });
+    }
+  });
+
+  const insertMutation = trpc.hometax.insert.useMutation({
+    onSuccess: () => {
+      toast({ title: "등록 성공", description: "자료가 성공적으로 등록되었습니다." });
+      utils.hometax.list.invalidate();
+      setIsDialogOpen(false);
+      setNewUrl("");
+    },
+    onError: (err) => {
+      toast({ title: "등록 실패", description: err.message, variant: "destructive" });
+    }
   });
 
   const deleteMutation = trpc.hometax.delete.useMutation({
     onSuccess: () => {
-      toast.success("삭제되었습니다.");
-      refetch();
+      toast({ title: "삭제 성공", description: "자료가 삭제되었습니다." });
+      utils.hometax.list.invalidate();
     },
-    onError: (err) => toast.error("삭제 실패: " + err.message),
-  });
-
-  const deleteAllMutation = trpc.hometax.deleteAll.useMutation({
-    onSuccess: (result) => {
-      toast.success(`${result.deleted}건 삭제되었습니다.`);
-      refetch();
-    },
-    onError: (err) => toast.error("삭제 실패: " + err.message),
-  });
-
-  const crawlMutation = trpc.hometax.crawl.useMutation({
-    onSuccess: (result) => {
-      toast.success(`수집 완료: 신규 ${result.inserted}건 등록`);
-      refetch();
-    },
-    onError: (err) => toast.error("수집 실패: " + err.message),
-  });
-
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
-
-  const handleTitleClick = (id: number, url: string) => {
-    incrementView.mutate({ id });
-    if (url && url.startsWith("http")) {
-      window.open(`/api/hometax-view?url=${encodeURIComponent(url)}`, "_blank", "noopener,noreferrer");
-    } else {
-      toast.error("유효하지 않은 링크입니다.");
+    onError: (err) => {
+      toast({ title: "삭제 실패", description: err.message, variant: "destructive" });
     }
-  };
+  });
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleManualInsert = () => {
     if (!newUrl.trim()) {
-      toast.error("URL을 입력해주세요.");
+      toast({ title: "알림", description: "URL을 입력해주세요.", variant: "destructive" });
       return;
     }
-    if (!newDate) {
-      toast.error("공지 날짜를 선택해주세요.");
-      return;
-    }
-    createMutation.mutate({
-      title: newTitle.trim() || undefined, // 비어있으면 서버에서 자동 생성
-      url: newUrl.trim(),
+
+    const formattedDate = format(newDate, "yyyy년 M월 d일");
+    const autoTitle = `[전자신고]${newTaxType} ${newDocType}(${formattedDate} 공지)`;
+
+    insertMutation.mutate({
+      title: autoTitle,
+      url: newUrl,
       taxType: newTaxType,
       docType: newDocType,
-      date: newDate,
+      date: format(newDate, "yyyy-MM-dd"),
     });
   };
 
-  const handleFilterReset = () => {
-    setStartDate("");
-    setEndDate("");
-    setTaxType("전체");
-    setDocType("전체");
-    setPage(1);
+  const handleOpenUrl = (url: string) => {
+    const proxyUrl = `/api/hometax-view?url=${encodeURIComponent(url)}`;
+    window.open(proxyUrl, "_blank", "noopener,noreferrer");
   };
 
   return (
-    <div className="container py-10 max-w-6xl mx-auto px-4">
-      {/* Header */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+    <div className="container mx-auto py-8 px-4 max-w-6xl">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-1">
-            Hometax
-          </p>
-          <h1 className="text-3xl font-extrabold text-foreground tracking-tight">
-            전자신고 설명서
-          </h1>
-          <p className="text-sm font-light text-muted-foreground mt-1">
-            홈택스 공지사항 자동 수집 및 수기 등록 관리
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">홈택스 전자신고 설명서</h1>
+          <p className="text-muted-foreground mt-1">홈택스 자료실의 최신 전자신고 가이드를 자동으로 수집합니다.</p>
         </div>
-        <div className="flex flex-wrap gap-2 self-start sm:self-auto">
-          <Button
-            size="sm"
-            variant="default"
-            className="gap-2 shadow-sm"
-            onClick={() => setShowCreateForm(!showCreateForm)}
-          >
-            {showCreateForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            {showCreateForm ? "닫기" : "수기 등록"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-2 bg-card shadow-sm"
-            onClick={() => crawlMutation.mutate()}
-            disabled={crawlMutation.isPending}
-          >
-            <RefreshCw className={cn("w-4 h-4", crawlMutation.isPending && "animate-spin")} />
-            {crawlMutation.isPending ? "수집 중..." : "지금 수집"}
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => {
-              if (confirm("모든 데이터를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
-                deleteAllMutation.mutate();
-              }
-            }}
-            disabled={deleteAllMutation.isPending}
-          >
-            <Trash2 className="w-4 h-4" />
-            전체 삭제
-          </Button>
-        </div>
-      </div>
-
-      {/* Create Form */}
-      {showCreateForm && (
-        <div className="bg-card border border-border rounded-xl p-6 mb-8 shadow-md animate-in fade-in slide-in-from-top-4 duration-300">
-          <h2 className="font-bold text-lg text-foreground mb-6 flex items-center gap-2">
-            <Plus className="w-5 h-5 text-primary" />
-            새 설명서 수기 등록
-          </h2>
-          <form onSubmit={handleCreateSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-semibold text-foreground">URL <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
+        <div className="flex gap-2">
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Plus className="w-4 h-4" />
+                수기 등록
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>자료 수기 등록</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">홈택스 상세 URL</label>
+                  <Input 
+                    placeholder="https://hometax.go.kr/..." 
                     value={newUrl}
                     onChange={(e) => setNewUrl(e.target.value)}
-                    placeholder="홈택스 공지사항 URL을 입력하세요 (https://...)"
-                    required
-                    className="pl-10 bg-background border-muted-foreground/20 focus:border-primary"
                   />
                 </div>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground">공지 날짜 <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    type="date"
-                    value={newDate}
-                    onChange={(e) => setNewDate(e.target.value)}
-                    required
-                    className="pl-10 bg-background border-muted-foreground/20 focus:border-primary"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">세금 유형</label>
+                    <Select value={newTaxType} onValueChange={setNewTaxType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="부가가치세">부가가치세</SelectItem>
+                        <SelectItem value="원천세">원천세</SelectItem>
+                        <SelectItem value="법인세">법인세</SelectItem>
+                        <SelectItem value="종합소득세">종합소득세</SelectItem>
+                        <SelectItem value="기타">기타</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">문서 유형</label>
+                    <Select value={newDocType} onValueChange={setNewDocType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="파일설명서">파일설명서</SelectItem>
+                        <SelectItem value="제출요령">제출요령</SelectItem>
+                        <SelectItem value="안내문">안내문</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">공지 날짜</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {format(newDate, "yyyy-MM-dd")}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={newDate}
+                        onSelect={(date) => date && setNewDate(date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
+              <DialogFooter>
+                <Button onClick={handleManualInsert} disabled={insertMutation.isPending}>
+                  {insertMutation.isPending ? "등록 중..." : "등록하기"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground">세금 유형</label>
-                <Select value={newTaxType} onValueChange={setNewTaxType}>
-                  <SelectTrigger className="bg-background border-muted-foreground/20">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TAX_TYPES.filter(t => t !== "전체").map(t => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground">문서 유형</label>
-                <Select value={newDocType} onValueChange={setNewDocType}>
-                  <SelectTrigger className="bg-background border-muted-foreground/20">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DOC_TYPES.filter(t => t !== "전체").map(t => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground">제목 <span className="text-xs font-normal text-muted-foreground ml-1">(미입력 시 자동 생성)</span></label>
-                <Input
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="미입력 시 [전자신고]유형(날짜 공지) 형식으로 자동 생성됩니다"
-                  className="bg-background border-muted-foreground/20 focus:border-primary"
-                />
-              </div>
-            </div>
-            
-            <div className="bg-muted/30 p-4 rounded-lg border border-dashed border-border">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                <strong>제목 자동 생성 예시:</strong><br />
-                [전자신고]{newTaxType} {newDocType}({newDate ? new Date(newDate).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '날짜'} 공지)
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <Button type="button" variant="outline" onClick={() => setShowCreateForm(false)}>취소</Button>
-              <Button type="submit" disabled={createMutation.isPending} className="min-w-[100px]">
-                {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "등록하기"}
-              </Button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="bg-card border border-border rounded-xl p-5 mb-6 shadow-sm">
-        <div className="flex items-center gap-2 mb-4">
-          <Filter className="w-4 h-4 text-primary" />
-          <span className="text-sm font-bold text-foreground">상세 필터</span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground">시작일</label>
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
-              className="h-9 text-sm bg-background border-muted-foreground/20"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground">종료일</label>
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
-              className="h-9 text-sm bg-background border-muted-foreground/20"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground">세금 유형</label>
-            <Select value={taxType} onValueChange={(v) => { setTaxType(v); setPage(1); }}>
-              <SelectTrigger className="h-9 text-sm bg-background border-muted-foreground/20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TAX_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground">문서 유형</label>
-            <Select value={docType} onValueChange={(v) => { setDocType(v); setPage(1); }}>
-              <SelectTrigger className="h-9 text-sm bg-background border-muted-foreground/20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DOC_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div className="mt-4 flex justify-end">
-          <Button variant="ghost" size="sm" onClick={handleFilterReset} className="text-xs text-muted-foreground hover:text-primary">
-            필터 초기화
+          <Button 
+            onClick={() => crawlMutation.mutate({})} 
+            disabled={crawlMutation.isPending}
+            className="gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${crawlMutation.isPending ? 'animate-spin' : ''}`} />
+            지금 수집
           </Button>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-muted/10">
-          <span className="text-sm text-muted-foreground">
-            전체 <strong className="text-foreground">{data?.total ?? 0}</strong>건
-          </span>
-          <span className="text-xs text-muted-foreground font-medium">최신순 정렬</span>
-        </div>
-
-        {isLoading ? (
-          <div className="py-20 flex flex-col items-center justify-center">
-            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
-            <p className="text-sm text-muted-foreground">데이터를 불러오는 중입니다...</p>
+      <Card className="mb-6">
+        <CardContent className="p-4 flex flex-wrap gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">세금유형:</span>
+            <Select value={taxType} onValueChange={setTaxType}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="전체" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체</SelectItem>
+                <SelectItem value="부가가치세">부가가치세</SelectItem>
+                <SelectItem value="원천세">원천세</SelectItem>
+                <SelectItem value="법인세">법인세</SelectItem>
+                <SelectItem value="종합소득세">종합소득세</SelectItem>
+                <SelectItem value="기타">기타</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        ) : !data?.items.length ? (
-          <div className="py-20 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-              <Search className="w-8 h-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-bold text-foreground">데이터가 없습니다</h3>
-            <p className="text-sm text-muted-foreground mt-1">필터를 변경하거나 수집 버튼을 눌러보세요.</p>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">문서유형:</span>
+            <Select value={docType} onValueChange={setDocType}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="전체" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체</SelectItem>
+                <SelectItem value="파일설명서">파일설명서</SelectItem>
+                <SelectItem value="제출요령">제출요령</SelectItem>
+                <SelectItem value="안내문">안내문</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-3">
+        {isLoading ? (
+          Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          ))
+        ) : data?.items.length === 0 ? (
+          <div className="text-center py-20 border-2 border-dashed rounded-2xl bg-muted/5">
+            <Search className="w-12 h-12 mx-auto text-muted-foreground/30 mb-4" />
+            <p className="text-lg font-medium text-muted-foreground">조건에 맞는 자료가 없습니다.</p>
+            <p className="text-sm text-muted-foreground/60 mt-1">수집 버튼을 눌러 최신 자료를 가져와보세요.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-muted/30 border-b border-border">
-                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-16">No</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">제목</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-28 hidden sm:table-cell">세금 유형</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-36 hidden md:table-cell">문서 유형</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-28 hidden lg:table-cell">등록일</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-muted-foreground uppercase tracking-wider w-20">조회수</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-16">관리</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.items.map((item, idx) => (
-                  <tr key={item.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors group">
-                    <td className="px-4 py-4 text-xs text-muted-foreground">{(page - 1) * PAGE_SIZE + idx + 1}</td>
-                    <td className="px-4 py-4">
-                      <button
-                        onClick={() => handleTitleClick(item.id, item.url)}
-                        className="text-sm text-left font-semibold text-foreground hover:text-primary transition-colors flex items-start gap-2 group/link"
-                      >
-                        <span className="line-clamp-2">{item.title}</span>
-                        <ExternalLink className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 opacity-0 group-hover/link:opacity-100 transition-opacity" />
-                      </button>
-                      <div className="flex items-center gap-2 mt-1.5 sm:hidden">
-                        <TaxBadge type={item.taxType} />
-                        <DocBadge type={item.docType} />
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 hidden sm:table-cell"><TaxBadge type={item.taxType} /></td>
-                    <td className="px-4 py-4 hidden md:table-cell"><DocBadge type={item.docType} /></td>
-                    <td className="px-4 py-4 text-sm text-muted-foreground hidden lg:table-cell">{item.date}</td>
-                    <td className="px-4 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                        <Eye className="w-3 h-3" />
-                        {item.viewCount.toLocaleString()}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <button
-                        onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: item.id }); }}
-                        className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                        title="삭제"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          data?.items.map((item) => (
+            <Card key={item.id} className="group hover:border-primary/50 transition-all hover:shadow-sm">
+              <CardContent className="p-4 flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
+                      {item.taxType}
+                    </Badge>
+                    <Badge variant="secondary" className="font-normal">
+                      {item.docType}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground ml-2">
+                      {item.date}
+                    </span>
+                  </div>
+                  <h3 
+                    className="font-semibold text-lg truncate cursor-pointer hover:text-primary transition-colors"
+                    onClick={() => handleOpenUrl(item.url)}
+                  >
+                    {item.title}
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      if(confirm("이 자료를 삭제하시겠습니까?")) deleteMutation.mutate({ id: item.id });
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2"
+                    onClick={() => handleOpenUrl(item.url)}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    열기
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))
         )}
       </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="mt-8 flex items-center justify-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="w-9 h-9 rounded-full"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <div className="flex items-center gap-1">
-            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-              let pageNum: number;
-              if (totalPages <= 5) pageNum = i + 1;
-              else if (page <= 3) pageNum = i + 1;
-              else if (page >= totalPages - 2) pageNum = totalPages - 4 + i;
-              else pageNum = page - 2 + i;
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => setPage(pageNum)}
-                  className={cn(
-                    "w-9 h-9 text-sm rounded-full transition-all font-medium",
-                    page === pageNum ? "bg-primary text-primary-foreground shadow-md" : "text-muted-foreground hover:bg-muted"
-                  )}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-          </div>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-            className="w-9 h-9 rounded-full"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

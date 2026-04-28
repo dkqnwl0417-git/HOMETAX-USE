@@ -1,11 +1,11 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { trpc } from "@/lib/trpc";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button.tsx";
+import { Input } from "@/components/ui/input.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
+import { Badge } from "@/components/ui/badge.tsx";
+import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { 
   Search, 
   Upload, 
@@ -100,21 +100,14 @@ export default function ManualFiles() {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
     onDrop,
     multiple: false,
-    accept: {
-      'application/pdf': ['.pdf'],
-      'application/msword': ['.doc'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'application/vnd.ms-excel': ['.xls'],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'application/x-hwp': ['.hwp'],
-    }
   });
 
-  const handleDownload = (url: string, filename: string, mimeType?: string) => {
-    // API 다운로드 엔드포인트를 통한 다운로드 (파일명과 MIME 타입 보존)
-    const downloadUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}${mimeType ? `&mimeType=${encodeURIComponent(mimeType)}` : ''}`;
+  const handleDownload = (url: string, title: string, fileType: string) => {
+    const filename = `${title}.${fileType}`;
+    const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+    
     const link = document.createElement('a');
-    link.href = downloadUrl;
+    link.href = proxyUrl;
     link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
@@ -175,7 +168,7 @@ export default function ManualFiles() {
                       <Upload className="w-6 h-6 text-primary" />
                     </div>
                     <p className="text-sm font-medium">파일을 드래그하거나 클릭하세요</p>
-                    <p className="text-xs text-muted-foreground">PDF, Word, Excel, HWP (최대 50MB)</p>
+                    <p className="text-xs text-muted-foreground">모든 파일 형식 지원 (최대 50MB)</p>
                   </div>
                 )}
               </div>
@@ -215,7 +208,7 @@ export default function ManualFiles() {
                       <div className="overflow-hidden">
                         <h3 
                           className="font-semibold truncate cursor-pointer hover:text-primary transition-colors"
-                          onClick={() => handleDownload(file.fileUrl, `${file.title}.${file.fileType}`, file.mimeType || "application/octet-stream")}
+                          onClick={() => handleDownload(file.fileUrl, file.title, file.fileType)}
                         >
                           {file.title}
                         </h3>
@@ -243,7 +236,7 @@ export default function ManualFiles() {
                         variant="outline" 
                         size="sm" 
                         className="gap-2"
-                        onClick={() => handleDownload(file.fileUrl, `${file.title}.${file.fileType}`, file.mimeType || "application/octet-stream")}
+                        onClick={() => handleDownload(file.fileUrl, file.title, file.fileType)}
                       >
                         <Download className="w-4 h-4" />
                         다운로드
