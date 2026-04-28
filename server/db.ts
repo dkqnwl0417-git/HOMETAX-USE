@@ -1,52 +1,90 @@
 import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import * as schema from "../drizzle/schema";
-import { eq, desc, and, like, sql } from "drizzle-orm";
+import { eq, and, gte, lte, desc, like, sql } from "drizzle-orm";
 
-let dbInstance: any = null;
+let _db: any = null;
 
-export async function getDb() {
-  if (dbInstance) return dbInstance;
-
-  const url = process.env.DATABASE_URL;
-  const authToken = process.env.TURSO_AUTH_TOKEN;
-
-  if (url && url.startsWith("libsql://")) {
-    console.log("[DB] Connecting to Turso Database...");
-    const client = createClient({ url, authToken });
-    dbInstance = drizzle(client, { schema });
-  } else {
-    console.log("[DB] Connecting to Local SQLite (Data may be lost on redeploy)");
-    const client = createClient({ url: "file:local.db" });
-    dbInstance = drizzle(client, { schema });
-  }
-
-  await initDb();
-  return dbInstance;
+async function getDb() {
+  if (_db) return _db;
+  const url = process.env.DATABASE_URL || "file:sqlite.db";
+  const authToken = process.env.DATABASE_AUTH_TOKEN;
+  console.log("[DB] Connecting to:", url);
+  const client = createClient({ url, authToken });
+  _db = drizzle(client, { schema });
+  return _db;
 }
 
-export async function initDb() {
-  const db = await getDb();
+export async function initDb() { 
   try {
-    console.log("[DB] Starting Self-Healing Database Initialization...");
-    // 테이블 생성 SQL (Turso/libSQL 호환)
-    await db.run(sql`CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, open_id TEXT UNIQUE, username TEXT, avatar_url TEXT, role TEXT DEFAULT 'user', created_at INTEGER, updated_at INTEGER, last_signed_in INTEGER)`);
-    await db.run(sql`CREATE TABLE IF NOT EXISTS hometax_notices (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, url TEXT UNIQUE, tax_type TEXT, doc_type TEXT, date TEXT, view_count INTEGER DEFAULT 0, created_at INTEGER)`);
-    await db.run(sql`CREATE TABLE IF NOT EXISTS manual_files (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, file_url TEXT, file_type TEXT, original_name TEXT, mime_type TEXT, uploader TEXT, created_at INTEGER)`);
-    await db.run(sql`CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, notice_id INTEGER, title TEXT, url TEXT, is_read INTEGER DEFAULT 0, created_at INTEGER)`);
-    console.log("[DB] Self-Healing Initialization Complete.");
+    const db = await getDb(); 
+    console.log("[DB] Initializing tables if not exist...");
+    
+    // 테이블 자동 생성 쿼리 (libsql 직접 실행)
+    const client = (db as any).$client || createClient({ 
+      url: process.env.DATABASE_URL || "file:sqlite.db", 
+      authToken: process.env.DATABASE_AUTH_TOKEN 
+    });
+
+    await client.execute(`CREATE TABLE IF NOT EXISTS "users" (
+      "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      "openId" text NOT NULL UNIQUE,
+      "name" text,
+      "email" text,
+      "loginMethod" text,
+      "role" text DEFAULT 'user' NOT NULL,
+      "createdAt" integer NOT NULL,
+      "updatedAt" integer NOT NULL,
+      "lastSignedIn" integer NOT NULL
+    )`);
+
+    await client.execute(`CREATE TABLE IF NOT EXISTS "hometaxNotices" (
+      "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      "title" text NOT NULL,
+      "url" text NOT NULL UNIQUE,
+      "date" text NOT NULL,
+      "taxType" text DEFAULT '기타' NOT NULL,
+      "docType" text NOT NULL,
+      "viewCount" integer DEFAULT 0 NOT NULL,
+      "createdAt" integer NOT NULL
+    )`);
+
+    await client.execute(`CREATE TABLE IF NOT EXISTS "manualFiles" (
+      "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      "title" text NOT NULL,
+      "fileUrl" text NOT NULL,
+      "fileType" text NOT NULL,
+      "originalName" text NOT NULL,
+      "mimeType" text DEFAULT 'application/octet-stream' NOT NULL,
+      "uploader" text NOT NULL,
+      "createdAt" integer NOT NULL
+    )`);
+
+    await client.execute(`CREATE TABLE IF NOT EXISTS "notifications" (
+      "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+      "noticeId" integer,
+      "title" text,
+      "url" text,
+      "message" text,
+      "isRead" integer DEFAULT 0 NOT NULL,
+      "createdAt" integer NOT NULL
+    )`);
+
+    console.log("[DB] Table initialization complete.");
   } catch (err) {
-    console.error("[DB] Initialization Error:", err);
+    console.error("[DB] Initialization failed:", err);
   }
 }
 
-// ─── 홈택스 전자신고 설명서 ────────────────────────────────────────────────
+// ─── 홈택스 전자신고 설명서 ───────────────────────────────────────────────
 export async function getHometaxNotices(filters: any) {
   const db = await getDb();
   let conditions = [];
+  if (filters.startDate) conditions.push(gte(schema.hometaxNotices.date, filters.startDate));
+  if (filters.endDate) conditions.push(lte(schema.hometaxNotices.date, filters.endDate));
   if (filters.taxType) conditions.push(eq(schema.hometaxNotices.taxType, filters.taxType));
   if (filters.docType) conditions.push(eq(schema.hometaxNotices.docType, filters.docType));
-  
+
   const items = await db.query.hometaxNotices.findMany({
     where: conditions.length > 0 ? and(...conditions) : undefined,
     orderBy: [desc(schema.hometaxNotices.date), desc(schema.hometaxNotices.id)],
@@ -54,45 +92,74 @@ export async function getHometaxNotices(filters: any) {
     offset: (filters.page - 1) * filters.pageSize,
   });
 
-  // URL 복원 (Base64 -> Plain)
-  const restoredItems = items.map((item: any) => ({
-    ...item,
-    url: item.url.startsWith('b64:') ? Buffer.from(item.url.substring(4), 'base64').toString('utf8') : item.url
-  }));
-
-  return { items: restoredItems, total: 100 };
+  const countResult = await db.select({ count: sql`count(*)` })
+    .from(schema.hometaxNotices)
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+  
+  return { 
+    items, 
+    total: Number(countResult[0]?.count || 0) 
+  };
 }
 
 export async function insertHometaxNotice(data: any) {
   const db = await getDb();
   try {
-    // URL 인코딩 (변조 방지)
-    const encodedUrl = 'b64:' + Buffer.from(data.url).toString('base64');
+    console.log("[DB] Attempting to insert notice:", data.url);
     
     const existing = await db.query.hometaxNotices.findFirst({
-      where: eq(schema.hometaxNotices.url, encodedUrl)
+      where: eq(schema.hometaxNotices.url, data.url)
     });
-    if (existing) return null;
+    
+    if (existing) {
+      console.warn("[DB] Duplicate URL detected:", data.url);
+      return null;
+    }
 
-    const result = await db.insert(schema.hometaxNotices).values({
-      ...data,
-      url: encodedUrl,
-      createdAt: data.createdAt ? data.createdAt.getTime() : new Date().getTime()
-    }).returning();
-    return result[0].id;
-  } catch (err) {
-    console.error("[DB] Error inserting notice:", err);
+    const values = {
+      title: data.title,
+      url: data.url,
+      date: data.date,
+      taxType: data.taxType,
+      docType: data.docType,
+      viewCount: 0,
+      createdAt: new Date().getTime()
+    };
+
+    const result = await db.insert(schema.hometaxNotices).values(values).returning({ id: schema.hometaxNotices.id });
+    
+    if (result && result.length > 0) {
+      console.log("[DB] Successfully inserted notice, ID:", result[0].id);
+      return result[0].id;
+    }
+    return null;
+  } catch (err: any) {
+    console.error("[DB] Error in insertHometaxNotice:", err);
+    // 테이블이 없는 경우를 대비해 초기화 재시도
+    if (err.message?.includes("no such table")) {
+      await initDb();
+    }
     return null;
   }
 }
 
 export async function urlExists(url: string) {
+  try {
+    const db = await getDb();
+    const existing = await db.query.hometaxNotices.findFirst({
+      where: eq(schema.hometaxNotices.url, url)
+    });
+    return !!existing;
+  } catch (err) {
+    return false;
+  }
+}
+
+export async function incrementViewCount(id: number) {
   const db = await getDb();
-  const encodedUrl = 'b64:' + Buffer.from(url).toString('base64');
-  const existing = await db.query.hometaxNotices.findFirst({
-    where: eq(schema.hometaxNotices.url, encodedUrl)
-  });
-  return !!existing;
+  await db.update(schema.hometaxNotices)
+    .set({ viewCount: sql`viewCount + 1` })
+    .where(eq(schema.hometaxNotices.id, id));
 }
 
 export async function deleteHometaxNotice(id: number) {
@@ -111,19 +178,12 @@ export async function deleteAllHometaxNotices() {
   return Number(result.rowsAffected || 0);
 }
 
-export async function incrementViewCount(id: number) {
-  const db = await getDb();
-  await db.update(schema.hometaxNotices)
-    .set({ viewCount: sql`view_count + 1` })
-    .where(eq(schema.hometaxNotices.id, id));
-}
-
 // ─── 내부 메뉴얼 자료실 ───────────────────────────────────────────────────
 export async function getManualFiles(filters: any) {
   const db = await getDb();
   let conditions = [];
   if (filters.keyword) conditions.push(like(schema.manualFiles.title, `%${filters.keyword}%`));
-
+  
   const items = await db.query.manualFiles.findMany({
     where: conditions.length > 0 ? and(...conditions) : undefined,
     orderBy: [desc(schema.manualFiles.createdAt)],
@@ -131,19 +191,34 @@ export async function getManualFiles(filters: any) {
     offset: (filters.page - 1) * filters.pageSize,
   });
 
-  return { items, total: 100 };
+  const countResult = await db.select({ count: sql`count(*)` })
+    .from(schema.manualFiles)
+    .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+  return { 
+    items, 
+    total: Number(countResult[0]?.count || 0) 
+  };
 }
 
 export async function insertManualFile(data: any) {
   const db = await getDb();
   try {
-    const result = await db.insert(schema.manualFiles).values({
-      ...data,
-      createdAt: data.createdAt ? data.createdAt.getTime() : new Date().getTime()
-    }).returning();
-    return result[0].id;
-  } catch (err) {
-    console.error("[DB] Error inserting manual file:", err);
+    const values = {
+      title: data.title,
+      fileUrl: data.fileUrl,
+      fileType: data.fileType,
+      originalName: data.originalName,
+      mimeType: data.mimeType || "application/octet-stream",
+      uploader: data.uploader,
+      createdAt: new Date().getTime()
+    };
+    const result = await db.insert(schema.manualFiles).values(values).returning({ id: schema.manualFiles.id });
+    if (result && result.length > 0) return result[0].id;
+    return null;
+  } catch (err: any) {
+    console.error("[DB] Error in insertManualFile:", err);
+    if (err.message?.includes("no such table")) await initDb();
     return null;
   }
 }
@@ -181,14 +256,17 @@ export async function markAllNotificationsRead() {
 }
 
 export async function insertNotification(data: any) {
-  const db = await getDb();
   try {
+    const db = await getDb();
     await db.insert(schema.notifications).values({
-      ...data,
-      createdAt: data.createdAt ? data.createdAt.getTime() : new Date().getTime()
+      noticeId: data.noticeId,
+      title: data.title,
+      url: data.url,
+      isRead: data.isRead || 0,
+      createdAt: new Date().getTime()
     });
   } catch (err) {
-    console.error("[DB] Error inserting notification:", err);
+    console.error("[DB] Error in insertNotification:", err);
   }
 }
 
@@ -201,20 +279,19 @@ export async function getUserByOpenId(openId: string) {
 export async function upsertUser(data: any) {
   const db = await getDb();
   const existing = await getUserByOpenId(data.openId);
-  const now = new Date().getTime();
   if (existing) {
     await db.update(schema.users).set({
       ...data,
-      updatedAt: now,
-      lastSignedIn: now
+      updatedAt: new Date().getTime(),
+      lastSignedIn: new Date().getTime()
     }).where(eq(schema.users.openId, data.openId));
     return existing;
   }
   const result = await db.insert(schema.users).values({
     ...data,
-    createdAt: now,
-    updatedAt: now,
-    lastSignedIn: now
+    createdAt: new Date().getTime(),
+    updatedAt: new Date().getTime(),
+    lastSignedIn: new Date().getTime()
   }).returning();
   return result[0];
 }

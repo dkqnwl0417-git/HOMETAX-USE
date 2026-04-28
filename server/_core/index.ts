@@ -1,97 +1,65 @@
+import "dotenv/config";
 import express from "express";
+import { createServer } from "http";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import { registerOAuthRoutes } from "./oauth";
+import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
+import { createContext } from "./context";
+import { serveStatic, setupVite } from "./vite";
+import { registerCloudinaryUpload } from "../cloudinaryUpload";
+import { runCrawler } from "../crawler";
+import cron from "node-cron";
 import { initDb } from "../db";
-import path from "path";
-import { fileURLToPath } from "url";
-import axios from "axios";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const app = express();
-app.use(express.json());
-
-// ─── 다운로드 프록시 (파일명 보존) ────────────────────────────────────────
-app.get("/api/download", async (req, res) => {
-  const { url, filename } = req.query;
-  if (!url) return res.status(400).send("URL is required");
-
-  try {
-    const response = await axios({
-      method: "get",
-      url: url as string,
-      responseType: "stream",
-    });
-
-    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(filename as string)}"`);
-    res.setHeader("Content-Type", response.headers["content-type"]);
-    response.data.pipe(res);
-  } catch (err) {
-    res.status(500).send("Download failed");
-  }
-});
-
-// ─── 홈택스 뷰 프록시 (Referer 우회) ──────────────────────────────────────
-app.get("/api/hometax-view", (req, res) => {
-  const { url } = req.query;
-  if (!url) return res.status(400).send("URL is required");
-
-  // Referer 없이 새 창에서 열리도록 HTML 응답
-  res.send(`
-    <html>
-      <head>
-        <meta name="referrer" content="no-referrer">
-        <script>
-          window.location.href = "${url}";
-        </script>
-      </head>
-      <body>연결 중...</body>
-    </html>
-  `);
-});
-
-// ─── 파일 업로드 (Cloudinary) ───────────────────────────────────────────
-import { uploadToCloudinary } from "../cloudinaryUpload";
-import multer from "multer";
-const upload = multer({ storage: multer.memoryStorage() });
-
-app.post("/api/upload", upload.single("file"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+async function startServer() {
+  const app = express();
+  const server = createServer(app);
   
-  try {
-    const result = await uploadToCloudinary(req.file.buffer, req.file.originalname);
-    res.json(result);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  // Configure body parser
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  
+  registerStorageProxy(app);
+  registerOAuthRoutes(app);
+  registerCloudinaryUpload(app);
+    
+  // DB 초기화
+  await initDb().catch(err => console.error("[DB] Init failed:", err));
+  
+  // 크롤링 스케줄러
+  cron.schedule("0 9 * * *", async () => {
+    console.log("[Cron] Running scheduled crawl...");
+    try {
+      await runCrawler(false);
+    } catch (err) {
+      console.error("[Cron] Crawl failed:", err);
+    }
+  });
+
+  // tRPC API
+  app.use(
+    "/api/trpc",
+    createExpressMiddleware({
+      router: appRouter,
+      createContext,
+    })
+  );
+
+  if (process.env.NODE_ENV === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
   }
-});
 
-// ─── tRPC ──────────────────────────────────────────────────────────────
-app.use(
-  "/api/trpc",
-  createExpressMiddleware({
-    router: appRouter,
-    createContext: () => ({}),
-  })
-);
+  // Render 환경에서는 반드시 0.0.0.0으로 바인딩해야 포트 감지가 가능합니다.
+  const port = parseInt(process.env.PORT || "3000");
+  const host = "0.0.0.0"; 
 
-// ─── 정적 파일 서빙 ──────────────────────────────────────────────────────
-const publicPath = path.join(__dirname, "../../dist/public");
-app.use(express.static(publicPath));
-
-app.get("*", (req, res) => {
-  res.sendFile(path.join(publicPath, "index.html"));
-});
-
-// ─── 서버 시작 ──────────────────────────────────────────────────────────
-const PORT = Number(process.env.PORT) || 10000;
-
-async function start() {
-  await initDb();
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Server] Running on http://0.0.0.0:${PORT}`);
+  server.listen(port, host, () => {
+    console.log(`Server is strictly listening on ${host}:${port}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 }
 
-start();
+startServer().catch(console.error);
