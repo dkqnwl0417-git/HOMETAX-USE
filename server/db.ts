@@ -8,7 +8,9 @@ let _db: any = null;
 async function getDb() {
   if (_db) return _db;
   const url = process.env.DATABASE_URL || "file:sqlite.db";
-  const authToken = process.env.DATABASE_AUTH_TOKEN;
+  // Render 환경변수: TURSO_AUTH_TOKEN 또는 DATABASE_AUTH_TOKEN 지원
+  const authToken = process.env.TURSO_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN;
+  
   console.log("[DB] Connecting to:", url);
   const client = createClient({ url, authToken });
   _db = drizzle(client, { schema });
@@ -20,12 +22,13 @@ export async function initDb() {
     const db = await getDb(); 
     console.log("[DB] Initializing tables if not exist...");
     
-    // 테이블 자동 생성 쿼리 (libsql 직접 실행)
-    const client = (db as any).$client || createClient({ 
-      url: process.env.DATABASE_URL || "file:sqlite.db", 
-      authToken: process.env.DATABASE_AUTH_TOKEN 
-    });
+    // Render 환경변수에서 다시 한번 확인
+    const url = process.env.DATABASE_URL || "file:sqlite.db";
+    const authToken = process.env.TURSO_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN;
+    
+    const client = createClient({ url, authToken });
 
+    // 1. users 테이블
     await client.execute(`CREATE TABLE IF NOT EXISTS "users" (
       "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
       "openId" text NOT NULL UNIQUE,
@@ -38,6 +41,7 @@ export async function initDb() {
       "lastSignedIn" integer NOT NULL
     )`);
 
+    // 2. hometaxNotices 테이블
     await client.execute(`CREATE TABLE IF NOT EXISTS "hometaxNotices" (
       "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
       "title" text NOT NULL,
@@ -49,6 +53,7 @@ export async function initDb() {
       "createdAt" integer NOT NULL
     )`);
 
+    // 3. manualFiles 테이블 (originalName, mimeType 포함)
     await client.execute(`CREATE TABLE IF NOT EXISTS "manualFiles" (
       "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
       "title" text NOT NULL,
@@ -60,6 +65,7 @@ export async function initDb() {
       "createdAt" integer NOT NULL
     )`);
 
+    // 4. notifications 테이블
     await client.execute(`CREATE TABLE IF NOT EXISTS "notifications" (
       "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
       "noticeId" integer,
@@ -82,8 +88,8 @@ export async function getHometaxNotices(filters: any) {
   let conditions = [];
   if (filters.startDate) conditions.push(gte(schema.hometaxNotices.date, filters.startDate));
   if (filters.endDate) conditions.push(lte(schema.hometaxNotices.date, filters.endDate));
-  if (filters.taxType) conditions.push(eq(schema.hometaxNotices.taxType, filters.taxType));
-  if (filters.docType) conditions.push(eq(schema.hometaxNotices.docType, filters.docType));
+  if (filters.taxType && filters.taxType !== '전체') conditions.push(eq(schema.hometaxNotices.taxType, filters.taxType));
+  if (filters.docType && filters.docType !== '전체') conditions.push(eq(schema.hometaxNotices.docType, filters.docType));
 
   const items = await db.query.hometaxNotices.findMany({
     where: conditions.length > 0 ? and(...conditions) : undefined,
@@ -105,16 +111,11 @@ export async function getHometaxNotices(filters: any) {
 export async function insertHometaxNotice(data: any) {
   const db = await getDb();
   try {
-    console.log("[DB] Attempting to insert notice:", data.url);
-    
     const existing = await db.query.hometaxNotices.findFirst({
       where: eq(schema.hometaxNotices.url, data.url)
     });
     
-    if (existing) {
-      console.warn("[DB] Duplicate URL detected:", data.url);
-      return null;
-    }
+    if (existing) return null;
 
     const values = {
       title: data.title,
@@ -127,18 +128,10 @@ export async function insertHometaxNotice(data: any) {
     };
 
     const result = await db.insert(schema.hometaxNotices).values(values).returning({ id: schema.hometaxNotices.id });
-    
-    if (result && result.length > 0) {
-      console.log("[DB] Successfully inserted notice, ID:", result[0].id);
-      return result[0].id;
-    }
-    return null;
+    return result[0]?.id || null;
   } catch (err: any) {
     console.error("[DB] Error in insertHometaxNotice:", err);
-    // 테이블이 없는 경우를 대비해 초기화 재시도
-    if (err.message?.includes("no such table")) {
-      await initDb();
-    }
+    if (err.message?.includes("no such table")) await initDb();
     return null;
   }
 }
@@ -214,8 +207,7 @@ export async function insertManualFile(data: any) {
       createdAt: new Date().getTime()
     };
     const result = await db.insert(schema.manualFiles).values(values).returning({ id: schema.manualFiles.id });
-    if (result && result.length > 0) return result[0].id;
-    return null;
+    return result[0]?.id || null;
   } catch (err: any) {
     console.error("[DB] Error in insertManualFile:", err);
     if (err.message?.includes("no such table")) await initDb();
