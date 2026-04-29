@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import {
   Search,
   Upload,
@@ -13,15 +14,17 @@ import {
   Download,
   Trash2,
   FileIcon,
-  Loader2
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
-type UploadProgress = {
-  total: number;
-  current: number;
-  currentFileName: string;
+type UploadState = {
+  name: string;
+  status: "pending" | "success" | "error";
 };
 
 export default function ManualFiles() {
@@ -29,7 +32,9 @@ export default function ManualFiles() {
   const [page, setPage] = useState(1);
   const [isUploading, setIsUploading] = useState(false);
   const [uploaderName, setUploaderName] = useState("");
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<UploadState[]>([]);
   const { toast } = useToast();
 
   const utils = trpc.useContext();
@@ -39,7 +44,14 @@ export default function ManualFiles() {
     pageSize: 10,
   });
 
-  const uploadMutation = trpc.manual.upload.useMutation();
+  const uploadMutation = trpc.manual.upload.useMutation({
+    onSuccess: () => {
+      utils.manual.list.invalidate();
+    },
+    onError: (err) => {
+      console.error("DB 저장 실패:", err);
+    },
+  });
 
   const deleteMutation = trpc.manual.delete.useMutation({
     onSuccess: () => {
@@ -48,93 +60,117 @@ export default function ManualFiles() {
     },
     onError: (err) => {
       toast({ title: "삭제 실패", description: err.message, variant: "destructive" });
-    }
+    },
   });
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (acceptedFiles.length === 0) return;
+  const queueFiles = useCallback(
+    (acceptedFiles: File[]) => {
+      if (acceptedFiles.length === 0) return;
+
+      setSelectedFiles((prev) => {
+        const existingKeys = new Set(prev.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
+        const nextFiles = acceptedFiles.filter(
+          (file) => !existingKeys.has(`${file.name}-${file.size}-${file.lastModified}`),
+        );
+
+        if (nextFiles.length !== acceptedFiles.length) {
+          toast({
+            title: "중복 파일 제외",
+            description: "이미 선택된 파일은 목록에 다시 추가하지 않았습니다.",
+          });
+        }
+
+        return [...prev, ...nextFiles];
+      });
+    },
+    [toast],
+  );
+
+  const handleBatchUpload = useCallback(async () => {
     if (!uploaderName.trim()) {
       toast({ title: "알림", description: "등록자 이름을 먼저 입력해주세요.", variant: "destructive" });
       return;
     }
 
+    if (selectedFiles.length === 0) {
+      toast({ title: "알림", description: "업로드할 파일을 먼저 선택해주세요.", variant: "destructive" });
+      return;
+    }
+
     setIsUploading(true);
+    setUploadProgress(0);
+    setUploadStatus(selectedFiles.map((file) => ({ name: file.name, status: "pending" as const })));
 
     let successCount = 0;
-    const failedUploads: string[] = [];
+    let failCount = 0;
 
-    try {
-      for (let index = 0; index < acceptedFiles.length; index += 1) {
-        const file = acceptedFiles[index];
-        setUploadProgress({
-          total: acceptedFiles.length,
-          current: index + 1,
-          currentFileName: file.name,
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const file = selectedFiles[i];
+      const formData = new FormData();
+      formData.append("file", file);
+
+      try {
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
         });
 
-        try {
-          const formData = new FormData();
-          formData.append("file", file);
-
-          const response = await fetch("/api/upload", {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => null);
-            throw new Error(errorData?.error || "업로드 실패");
-          }
-
-          const result = await response.json();
-
-          await uploadMutation.mutateAsync({
-            title: file.name.replace(/\.[^/.]+$/, ""),
-            fileUrl: result.fileUrl,
-            fileType: result.fileType,
-            originalName: result.originalName,
-            mimeType: result.mimeType,
-            uploader: uploaderName.trim(),
-          });
-
-          successCount += 1;
-        } catch (err: any) {
-          failedUploads.push(`${file.name}: ${err?.message || "알 수 없는 오류"}`);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "업로드 실패");
         }
+
+        const result = await response.json();
+
+        await uploadMutation.mutateAsync({
+          title: file.name.replace(/\.[^/.]+$/, ""),
+          fileUrl: result.fileUrl,
+          fileType: result.fileType,
+          originalName: result.originalName,
+          mimeType: result.mimeType,
+          uploader: uploaderName.trim(),
+        });
+
+        setUploadStatus((prev) =>
+          prev.map((item, idx) => (idx === i ? { ...item, status: "success" } : item)),
+        );
+        successCount++;
+      } catch (err: any) {
+        console.error(`파일 업로드 실패 (${file.name}):`, err);
+        setUploadStatus((prev) =>
+          prev.map((item, idx) => (idx === i ? { ...item, status: "error" } : item)),
+        );
+        failCount++;
       }
 
-      await utils.manual.list.invalidate();
-
-      if (successCount > 0 && failedUploads.length === 0) {
-        toast({
-          title: "일괄 업로드 완료",
-          description: `${successCount}개 파일이 성공적으로 등록되었습니다.`,
-        });
-      } else if (successCount > 0) {
-        toast({
-          title: "일부 업로드 완료",
-          description: `${successCount}개 성공 / ${failedUploads.length}개 실패`,
-        });
-        toast({
-          title: "실패 파일 확인",
-          description: failedUploads.slice(0, 3).join(" | "),
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "업로드 실패",
-          description: failedUploads[0] || "모든 파일 업로드에 실패했습니다.",
-          variant: "destructive",
-        });
-      }
-    } finally {
-      setIsUploading(false);
-      setUploadProgress(null);
+      setUploadProgress(Math.round(((i + 1) / selectedFiles.length) * 100));
     }
-  }, [toast, uploadMutation, uploaderName, utils.manual.list]);
+
+    setIsUploading(false);
+    if (failCount === 0) {
+      setSelectedFiles([]);
+    }
+
+    toast({
+      title: "업로드 완료",
+      description: `성공: ${successCount}건, 실패: ${failCount}건`,
+      variant: failCount > 0 ? "destructive" : "default",
+    });
+  }, [selectedFiles, uploaderName, uploadMutation, toast]);
+
+  const removeSelectedFile = useCallback((targetIndex: number) => {
+    setSelectedFiles((prev) => prev.filter((_, index) => index !== targetIndex));
+  }, []);
+
+  const clearSelectedFiles = useCallback(() => {
+    if (isUploading) return;
+    setSelectedFiles([]);
+    setUploadStatus([]);
+    setUploadProgress(0);
+  }, [isUploading]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
+    onDrop: queueFiles,
     multiple: true,
     disabled: isUploading,
     accept: {
@@ -145,7 +181,9 @@ export default function ManualFiles() {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
       "application/x-hwp": [".hwp"],
       "application/vnd.hancom.hwpx": [".hwpx"],
-    }
+      "application/vnd.ms-powerpoint": [".ppt"],
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
+    },
   });
 
   const handleDownload = (url: string, filename: string, mimeType?: string) => {
@@ -164,6 +202,8 @@ export default function ManualFiles() {
     }
   };
 
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / 10)) : 1;
+
   return (
     <div className="container mx-auto py-8 px-4 max-w-5xl">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -179,7 +219,7 @@ export default function ManualFiles() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Upload className="w-5 h-5" />
-                새 자료 등록
+                자료 일괄 등록
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -189,6 +229,7 @@ export default function ManualFiles() {
                   placeholder="이름을 입력하세요"
                   value={uploaderName}
                   onChange={(e) => setUploaderName(e.target.value)}
+                  disabled={isUploading}
                 />
               </div>
 
@@ -201,30 +242,71 @@ export default function ManualFiles() {
                 `}
               >
                 <input {...getInputProps()} />
-                {isUploading ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="w-10 h-10 animate-spin text-primary" />
-                    <p className="text-sm font-medium">업로드 중...</p>
-                    {uploadProgress ? (
-                      <>
-                        <p className="text-xs text-muted-foreground">
-                          {uploadProgress.current} / {uploadProgress.total} · {uploadProgress.currentFileName}
-                        </p>
-                        <p className="text-xs text-muted-foreground">여러 파일을 순차적으로 안전하게 등록하고 있습니다.</p>
-                      </>
-                    ) : null}
+                <div className="flex flex-col items-center gap-2">
+                  <div className="p-3 bg-primary/10 rounded-full">
+                    {isUploading ? <Loader2 className="w-6 h-6 text-primary animate-spin" /> : <Upload className="w-6 h-6 text-primary" />}
+                  </div>
+                  <p className="text-sm font-medium">파일들을 드래그하거나 클릭해 여러 개 선택하세요</p>
+                  <p className="text-xs text-muted-foreground">선택 후 아래의 일괄 업로드 버튼으로 한 번에 등록됩니다.</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold">선택된 파일</p>
+                    <p className="text-xs text-muted-foreground">총 {selectedFiles.length}건</p>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={clearSelectedFiles} disabled={isUploading || selectedFiles.length === 0}>
+                    선택 초기화
+                  </Button>
+                </div>
+
+                {selectedFiles.length === 0 ? (
+                  <div className="text-xs text-muted-foreground border rounded-md bg-background px-3 py-4 text-center">
+                    아직 선택된 파일이 없습니다.
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="p-3 bg-primary/10 rounded-full">
-                      <Upload className="w-6 h-6 text-primary" />
-                    </div>
-                    <p className="text-sm font-medium">파일을 여러 개 드래그하거나 클릭해서 선택하세요</p>
-                    <p className="text-xs text-muted-foreground">등록자 이름 1회 입력 후 일괄 업로드 가능합니다.</p>
-                    <p className="text-xs text-muted-foreground">PDF, Word, Excel, HWP/HWPX (파일당 최대 50MB)</p>
+                  <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                    {selectedFiles.map((file, index) => (
+                      <div key={`${file.name}-${file.size}-${file.lastModified}`} className="flex items-center justify-between gap-2 border rounded-md bg-background px-2 py-2 text-xs">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{file.name}</p>
+                          <p className="text-muted-foreground">{Math.max(1, Math.round(file.size / 1024))} KB</p>
+                        </div>
+                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeSelectedFile(index)} disabled={isUploading}>
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 )}
+
+                <Button type="button" className="w-full gap-2" onClick={handleBatchUpload} disabled={isUploading || selectedFiles.length === 0 || !uploaderName.trim()}>
+                  {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {isUploading ? "업로드 진행 중" : `${selectedFiles.length}개 파일 일괄 업로드`}
+                </Button>
               </div>
+
+              {uploadStatus.length > 0 && (
+                <div className="space-y-3 mt-4">
+                  <div className="flex justify-between text-xs font-medium">
+                    <span>업로드 진행률</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <Progress value={uploadProgress} className="h-2" />
+                  <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
+                    {uploadStatus.map((file, i) => (
+                      <div key={`${file.name}-${i}`} className="flex items-center justify-between text-[11px] py-1 border-b border-border last:border-0">
+                        <span className="truncate max-w-[150px]">{file.name}</span>
+                        {file.status === "pending" && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+                        {file.status === "success" && <CheckCircle2 className="w-3 h-3 text-emerald-500" />}
+                        {file.status === "error" && <AlertCircle className="w-3 h-3 text-destructive" />}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -236,15 +318,16 @@ export default function ManualFiles() {
               placeholder="자료 제목으로 검색..."
               className="pl-10"
               value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
+              onChange={(e) => {
+                setKeyword(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
 
           <div className="space-y-3">
             {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-24 w-full rounded-xl" />
-              ))
+              Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)
             ) : data?.items.length === 0 ? (
               <div className="text-center py-12 border rounded-xl bg-muted/10">
                 <FileText className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
@@ -261,7 +344,7 @@ export default function ManualFiles() {
                       <div className="overflow-hidden">
                         <h3
                           className="font-semibold truncate cursor-pointer hover:text-primary transition-colors"
-                          onClick={() => handleDownload(file.fileUrl, `${file.title}.${file.fileType}`, file.mimeType || "application/octet-stream")}
+                          onClick={() => handleDownload(file.fileUrl, file.originalName || `${file.title}.${file.fileType}`, file.mimeType || "application/octet-stream")}
                         >
                           {file.title}
                         </h3>
@@ -289,7 +372,7 @@ export default function ManualFiles() {
                         variant="outline"
                         size="sm"
                         className="gap-2"
-                        onClick={() => handleDownload(file.fileUrl, `${file.title}.${file.fileType}`, file.mimeType || "application/octet-stream")}
+                        onClick={() => handleDownload(file.fileUrl, file.originalName || `${file.title}.${file.fileType}`, file.mimeType || "application/octet-stream")}
                       >
                         <Download className="w-4 h-4" />
                         다운로드
@@ -300,6 +383,20 @@ export default function ManualFiles() {
               ))
             )}
           </div>
+
+          {data && totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={page <= 1}>
+                이전
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                {page} / {totalPages}
+              </span>
+              <Button type="button" variant="outline" size="sm" onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))} disabled={page >= totalPages}>
+                다음
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>
