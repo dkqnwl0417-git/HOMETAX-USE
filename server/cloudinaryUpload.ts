@@ -21,7 +21,13 @@ function getFileType(originalname: string): string {
 }
 
 async function uploadToSupabase(buffer: Buffer, originalname: string): Promise<string> {
-  const fileName = `${Date.now()}-${Math.round(Math.random() * 1_000_000)}-${originalname}`;
+  const ext = originalname.match(/\.[^.]+$/)?.[0] || "";
+  const sanitized = originalname
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^\w\uAC00-\uD7A3\u3131-\u318E\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "") || "file";
+  const fileName = `${Date.now()}-${Math.round(Math.random() * 1_000_000)}-${sanitized}${ext}`;
 
   const { error } = await supabase.storage
     .from("manual-files")
