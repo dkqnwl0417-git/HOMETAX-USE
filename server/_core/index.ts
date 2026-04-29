@@ -5,6 +5,8 @@ import { createContext } from "./context";
 import { initDb } from "../db";
 import path from "path";
 import { fileURLToPath } from "url";
+import { registerDownloadRoute } from "../cloudinaryUpload";
+import { registerHometaxProxy } from "../hometaxProxy";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,6 +20,10 @@ async function startServer() {
 
   // Express 전용 라우터 (파일 업로드 등)
   app.use("/api", expressRouter);
+  
+  // 다운로드 및 프록시 라우트 등록
+  registerDownloadRoute(app);
+  registerHometaxProxy(app);
 
   // tRPC 미들웨어
   app.use(

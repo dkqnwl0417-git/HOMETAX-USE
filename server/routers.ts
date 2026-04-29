@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure, router } from "./_core/trpc";
+import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { 
   insertHometaxNotice, 
   listHometaxNotices, 
@@ -12,11 +12,30 @@ import { crawlHometax } from "./hometaxCrawler";
 import { uploadToCloudinary } from "./cloudinaryUpload";
 import express from "express";
 import multer from "multer";
+import { COOKIE_NAME } from "../shared/const";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export const appRouter = router({
-  hometax: {
+  // 인증 관련 라우터
+  auth: router({
+    me: publicProcedure.query(({ ctx }) => {
+      return ctx.user || null;
+    }),
+    logout: publicProcedure.mutation(({ ctx }) => {
+      ctx.res.clearCookie(COOKIE_NAME, {
+        maxAge: -1,
+        secure: true,
+        sameSite: "none",
+        httpOnly: true,
+        path: "/",
+      });
+      return { success: true };
+    }),
+  }),
+
+  // 홈택스 관련 라우터
+  hometax: router({
     list: publicProcedure.query(async () => {
       return await listHometaxNotices();
     }),
@@ -43,8 +62,10 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         return await deleteHometaxNotice(input.id);
       }),
-  },
-  manual: {
+  }),
+
+  // 매뉴얼 관련 라우터
+  manual: router({
     list: publicProcedure.query(async () => {
       return await listManualFiles();
     }),
@@ -53,7 +74,7 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         return await deleteManualFile(input.id);
       }),
-  }
+  })
 });
 
 export type AppRouter = typeof appRouter;
@@ -70,13 +91,17 @@ expressRouter.post("/manual/upload", upload.array("files"), async (req, res) => 
 
     const results = [];
     for (const file of files) {
-      // Cloudinary 업로드 (파일명 보존 로직은 cloudinaryUpload.ts에서 처리)
+      // Cloudinary 업로드
       const uploadResult = await uploadToCloudinary(file.buffer, file.originalname);
       
-      // DB 저장
+      // DB 저장 (schema.ts 구조에 맞게 수정)
       const dbResult = await insertManualFile({
         title: file.originalname,
-        url: uploadResult.secure_url,
+        fileUrl: uploadResult.secure_url,
+        fileType: file.originalname.split('.').pop() || 'unknown',
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        uploader: "system", // 기본값
       });
       results.push(dbResult);
     }

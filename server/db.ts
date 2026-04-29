@@ -18,22 +18,40 @@ export async function initDb() {
   try {
     // 테이블 자동 생성 (Self-Healing)
     await client.execute(`
-      CREATE TABLE IF NOT EXISTS hometax_notices (
+      CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        url TEXT NOT NULL,
-        tax_type TEXT NOT NULL,
-        doc_type TEXT NOT NULL,
-        date TEXT NOT NULL,
-        created_at INTEGER NOT NULL
+        openId TEXT NOT NULL UNIQUE,
+        name TEXT,
+        email TEXT,
+        loginMethod TEXT,
+        role TEXT NOT NULL DEFAULT 'user',
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL,
+        lastSignedIn INTEGER NOT NULL
       )
     `);
     await client.execute(`
-      CREATE TABLE IF NOT EXISTS manual_files (
+      CREATE TABLE IF NOT EXISTS hometaxNotices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
-        url TEXT NOT NULL,
-        created_at INTEGER NOT NULL
+        url TEXT NOT NULL UNIQUE,
+        date TEXT NOT NULL,
+        taxType TEXT NOT NULL DEFAULT '기타',
+        docType TEXT NOT NULL,
+        viewCount INTEGER NOT NULL DEFAULT 0,
+        createdAt INTEGER NOT NULL
+      )
+    `);
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS manualFiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        fileUrl TEXT NOT NULL,
+        fileType TEXT NOT NULL,
+        originalName TEXT NOT NULL,
+        mimeType TEXT NOT NULL DEFAULT 'application/octet-stream',
+        uploader TEXT NOT NULL,
+        createdAt INTEGER NOT NULL
       )
     `);
     console.log("[DB] Self-Healing Initialization Complete.");
@@ -73,7 +91,11 @@ export async function deleteHometaxNotice(id: number) {
 export async function insertManualFile(data: any) {
   const result = await db.insert(schema.manualFiles).values({
     title: data.title,
-    url: data.url,
+    fileUrl: data.fileUrl,
+    fileType: data.fileType,
+    originalName: data.originalName,
+    mimeType: data.mimeType || "application/octet-stream",
+    uploader: data.uploader || "system",
     createdAt: Date.now(),
   }).returning();
   return result[0];
@@ -95,8 +117,19 @@ export async function getUserByOpenId(openId: string) {
 
 export async function upsertUser(data: any) {
   const existing = await getUserByOpenId(data.openId);
+  const now = Date.now();
   if (existing) {
-    return await db.update(schema.users).set(data).where(eq(schema.users.openId, data.openId)).returning();
+    return await db.update(schema.users).set({
+      ...data,
+      updatedAt: now,
+      lastSignedIn: data.lastSignedIn || now
+    }).where(eq(schema.users.openId, data.openId)).returning();
   }
-  return await db.insert(schema.users).values(data).returning();
+  return await db.insert(schema.users).values({
+    ...data,
+    role: data.role || 'user',
+    createdAt: now,
+    updatedAt: now,
+    lastSignedIn: data.lastSignedIn || now
+  }).returning();
 }
