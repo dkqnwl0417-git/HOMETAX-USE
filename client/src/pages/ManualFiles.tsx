@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import { 
   Search, 
   Upload, 
@@ -13,7 +14,9 @@ import {
   Download, 
   Trash2, 
   FileIcon, 
-  Loader2
+  Loader2,
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +26,8 @@ export default function ManualFiles() {
   const [page, setPage] = useState(1);
   const [isUploading, setIsUploading] = useState(false);
   const [uploaderName, setUploaderName] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState<{ name: string; status: 'pending' | 'success' | 'error' }[]>([]);
   const { toast } = useToast();
 
   const utils = trpc.useContext();
@@ -34,17 +39,10 @@ export default function ManualFiles() {
 
   const uploadMutation = trpc.manual.upload.useMutation({
     onSuccess: () => {
-      toast({ title: "등록 성공", description: "파일이 성공적으로 등록되었습니다." });
       utils.manual.list.invalidate();
-      setIsUploading(false);
     },
     onError: (err) => {
-      toast({ 
-        title: "등록 실패", 
-        description: err.message || "파일 정보를 DB에 저장하는 데 실패했습니다.",
-        variant: "destructive" 
-      });
-      setIsUploading(false);
+      console.error("DB 저장 실패:", err);
     }
   });
 
@@ -65,41 +63,71 @@ export default function ManualFiles() {
       return;
     }
 
-    const file = acceptedFiles[0];
     setIsUploading(true);
+    setUploadProgress(0);
+    const initialStatus = acceptedFiles.map(f => ({ name: f.name, status: 'pending' as const }));
+    setUploadStatus(initialStatus);
 
-    const formData = new FormData();
-    formData.append("file", file);
+    let successCount = 0;
+    let failCount = 0;
 
-    try {
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+    for (let i = 0; i < acceptedFiles.length; i++) {
+      const file = acceptedFiles[i];
+      const formData = new FormData();
+      formData.append("file", file);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "업로드 실패");
+      try {
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "업로드 실패");
+        }
+
+        const result = await response.json();
+        
+        await uploadMutation.mutateAsync({
+          title: file.name.replace(/\.[^/.]+$/, ""),
+          fileUrl: result.fileUrl,
+          fileType: result.fileType,
+          originalName: result.originalName,
+          uploader: uploaderName,
+        });
+
+        setUploadStatus(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'success' } : s));
+        successCount++;
+      } catch (err: any) {
+        console.error(`파일 업로드 실패 (${file.name}):`, err);
+        setUploadStatus(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'error' } : s));
+        failCount++;
       }
-
-      const result = await response.json();
       
-      uploadMutation.mutate({
-        title: file.name.replace(/\.[^/.]+$/, ""),
-        fileUrl: result.fileUrl,
-        fileType: result.fileType,
-        originalName: result.originalName,
-        uploader: uploaderName,
-      });
-    } catch (err: any) {
-      toast({ title: "업로드 실패", description: err.message, variant: "destructive" });
-      setIsUploading(false);
+      setUploadProgress(Math.round(((i + 1) / acceptedFiles.length) * 100));
     }
-  }, [uploaderName, uploadMutation, toast]);
+
+    setIsUploading(false);
+    toast({ 
+      title: "업로드 완료", 
+      description: `성공: ${successCount}건, 실패: ${failCount}건`,
+      variant: failCount > 0 ? "destructive" : "default"
+    });
+    
+    // 3초 후 상태 초기화
+    setTimeout(() => {
+      if (!isUploading) {
+        setUploadStatus([]);
+        setUploadProgress(0);
+      }
+    }, 3000);
+
+  }, [uploaderName, uploadMutation, toast, isUploading]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
     onDrop,
-    multiple: false,
+    multiple: true,
     accept: {
       'application/pdf': ['.pdf'],
       'application/msword': ['.doc'],
@@ -111,7 +139,6 @@ export default function ManualFiles() {
   });
 
   const handleDownload = (url: string, filename: string, mimeType?: string) => {
-    // API 다운로드 엔드포인트를 통한 다운로드 (파일명과 MIME 타입 보존)
     const downloadUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}${mimeType ? `&mimeType=${encodeURIComponent(mimeType)}` : ''}`;
     const link = document.createElement('a');
     link.href = downloadUrl;
@@ -142,7 +169,7 @@ export default function ManualFiles() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Upload className="w-5 h-5" />
-                새 자료 등록
+                자료 일괄 등록
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -152,6 +179,7 @@ export default function ManualFiles() {
                   placeholder="이름을 입력하세요" 
                   value={uploaderName}
                   onChange={(e) => setUploaderName(e.target.value)}
+                  disabled={isUploading}
                 />
               </div>
               
@@ -164,21 +192,34 @@ export default function ManualFiles() {
                 `}
               >
                 <input {...getInputProps()} />
-                {isUploading ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="w-10 h-10 animate-spin text-primary" />
-                    <p className="text-sm font-medium">업로드 중...</p>
+                <div className="flex flex-col items-center gap-2">
+                  <div className="p-3 bg-primary/10 rounded-full">
+                    <Upload className="w-6 h-6 text-primary" />
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="p-3 bg-primary/10 rounded-full">
-                      <Upload className="w-6 h-6 text-primary" />
-                    </div>
-                    <p className="text-sm font-medium">파일을 드래그하거나 클릭하세요</p>
-                    <p className="text-xs text-muted-foreground">PDF, Word, Excel, HWP (최대 50MB)</p>
-                  </div>
-                )}
+                  <p className="text-sm font-medium">파일들을 드래그하거나 클릭하세요</p>
+                  <p className="text-xs text-muted-foreground">여러 파일 선택 가능 (최대 50MB/개)</p>
+                </div>
               </div>
+
+              {uploadStatus.length > 0 && (
+                <div className="space-y-3 mt-4">
+                  <div className="flex justify-between text-xs font-medium">
+                    <span>업로드 진행률</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <Progress value={uploadProgress} className="h-2" />
+                  <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
+                    {uploadStatus.map((file, i) => (
+                      <div key={i} className="flex items-center justify-between text-[11px] py-1 border-b border-border last:border-0">
+                        <span className="truncate max-w-[150px]">{file.name}</span>
+                        {file.status === 'pending' && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+                        {file.status === 'success' && <CheckCircle2 className="w-3 h-3 text-emerald-500" />}
+                        {file.status === 'error' && <AlertCircle className="w-3 h-3 text-destructive" />}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

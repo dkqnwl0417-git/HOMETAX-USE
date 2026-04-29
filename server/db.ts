@@ -7,7 +7,7 @@ let _db: any = null;
 
 async function getDb() {
   if (_db) return _db;
-  const url = process.env.DATABASE_URL || "file:sqlite.db";
+  const url = process.env.DATABASE_URL || (process.env.NODE_ENV === 'production' ? "file:/var/data/hometax.db" : "file:sqlite.db");
   const authToken = process.env.DATABASE_AUTH_TOKEN;
   console.log("[DB] Connecting to:", url);
   const client = createClient({ url, authToken });
@@ -22,7 +22,7 @@ export async function initDb() {
     
     // 테이블 자동 생성 쿼리 (libsql 직접 실행)
     const client = (db as any).$client || createClient({ 
-      url: process.env.DATABASE_URL || "file:sqlite.db", 
+      url: process.env.DATABASE_URL || (process.env.NODE_ENV === 'production' ? "file:/var/data/hometax.db" : "file:sqlite.db"), 
       authToken: process.env.DATABASE_AUTH_TOKEN 
     });
 
