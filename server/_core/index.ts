@@ -7,6 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { registerDownloadRoute } from "../cloudinaryUpload";
 import { registerHometaxProxy } from "../hometaxProxy";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,10 +37,38 @@ async function startServer() {
 
   // 정적 파일 서비스 (Production)
   if (process.env.NODE_ENV === "production") {
-    const publicPath = path.join(__dirname, "../public");
+    // 여러 경로 시도: dist/public → public → ../public
+    let publicPath = path.join(__dirname, "../public");
+    
+    // 현재 경로가 없으면 다른 경로 시도
+    if (!fs.existsSync(publicPath)) {
+      const altPath1 = path.join(__dirname, "../../dist/public");
+      const altPath2 = path.join(__dirname, "../../public");
+      const altPath3 = path.join(process.cwd(), "dist/public");
+      
+      if (fs.existsSync(altPath1)) {
+        publicPath = altPath1;
+      } else if (fs.existsSync(altPath2)) {
+        publicPath = altPath2;
+      } else if (fs.existsSync(altPath3)) {
+        publicPath = altPath3;
+      }
+    }
+
+    console.log(`[Server] Serving static files from: ${publicPath}`);
+    
+    // 정적 파일 서비스
     app.use(express.static(publicPath));
+    
+    // SPA 라우팅: 모든 요청을 index.html로 리다이렉트
     app.get("*", (req, res) => {
-      res.sendFile(path.join(publicPath, "index.html"));
+      const indexPath = path.join(publicPath, "index.html");
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        console.error(`[Server] index.html not found at ${indexPath}`);
+        res.status(404).send("index.html not found");
+      }
     });
   }
 

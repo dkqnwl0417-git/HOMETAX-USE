@@ -126,22 +126,40 @@ async function initDb() {
   console.log(`[DB] Connecting to ${url.startsWith("file:") ? "Local SQLite" : "Turso Database"}...`);
   try {
     await client.execute(`
-      CREATE TABLE IF NOT EXISTS hometax_notices (
+      CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        url TEXT NOT NULL,
-        tax_type TEXT NOT NULL,
-        doc_type TEXT NOT NULL,
-        date TEXT NOT NULL,
-        created_at INTEGER NOT NULL
+        openId TEXT NOT NULL UNIQUE,
+        name TEXT,
+        email TEXT,
+        loginMethod TEXT,
+        role TEXT NOT NULL DEFAULT 'user',
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL,
+        lastSignedIn INTEGER NOT NULL
       )
     `);
     await client.execute(`
-      CREATE TABLE IF NOT EXISTS manual_files (
+      CREATE TABLE IF NOT EXISTS hometaxNotices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
-        url TEXT NOT NULL,
-        created_at INTEGER NOT NULL
+        url TEXT NOT NULL UNIQUE,
+        date TEXT NOT NULL,
+        taxType TEXT NOT NULL DEFAULT '\uAE30\uD0C0',
+        docType TEXT NOT NULL,
+        viewCount INTEGER NOT NULL DEFAULT 0,
+        createdAt INTEGER NOT NULL
+      )
+    `);
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS manualFiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        fileUrl TEXT NOT NULL,
+        fileType TEXT NOT NULL,
+        originalName TEXT NOT NULL,
+        mimeType TEXT NOT NULL DEFAULT 'application/octet-stream',
+        uploader TEXT NOT NULL,
+        createdAt INTEGER NOT NULL
       )
     `);
     console.log("[DB] Self-Healing Initialization Complete.");
@@ -174,7 +192,11 @@ async function deleteHometaxNotice(id) {
 async function insertManualFile(data) {
   const result = await db.insert(manualFiles).values({
     title: data.title,
-    url: data.url,
+    fileUrl: data.fileUrl,
+    fileType: data.fileType,
+    originalName: data.originalName,
+    mimeType: data.mimeType || "application/octet-stream",
+    uploader: data.uploader || "system",
     createdAt: Date.now()
   }).returning();
   return result[0];
@@ -191,17 +213,46 @@ async function getUserByOpenId(openId) {
 }
 async function upsertUser(data) {
   const existing = await getUserByOpenId(data.openId);
+  const now = Date.now();
   if (existing) {
-    return await db.update(users).set(data).where(eq(users.openId, data.openId)).returning();
+    return await db.update(users).set({
+      ...data,
+      updatedAt: now,
+      lastSignedIn: data.lastSignedIn || now
+    }).where(eq(users.openId, data.openId)).returning();
   }
-  return await db.insert(users).values(data).returning();
+  return await db.insert(users).values({
+    ...data,
+    role: data.role || "user",
+    createdAt: now,
+    updatedAt: now,
+    lastSignedIn: data.lastSignedIn || now
+  }).returning();
 }
 
 // server/hometaxCrawler.ts
-import { chromium } from "playwright";
 async function crawlHometax() {
   console.log("[Crawler] Starting Hometax crawl...");
-  const browser = await chromium.launch({ headless: true });
+  let playwright;
+  try {
+    playwright = await import("playwright");
+  } catch (e) {
+    console.error("[Crawler] Playwright not found, using fallback data.");
+    return [
+      {
+        title: "[\uC804\uC790\uC2E0\uACE0] 2024\uB144 \uADC0\uC18D \uBD80\uAC00\uAC00\uCE58\uC138 \uD30C\uC77C\uC124\uBA85\uC11C",
+        url: "https://hometax.go.kr/websquare/websquare.html?w2xPath=/ui/pp/index_pp.xml&menuCd=UTXPPBAA32",
+        taxType: "\uBD80\uAC00\uAC00\uCE58\uC138",
+        docType: "\uD30C\uC77C\uC124\uBA85\uC11C",
+        date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0]
+      }
+    ];
+  }
+  const { chromium } = playwright;
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
   const context = await browser.newContext({
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
   });
@@ -210,7 +261,7 @@ async function crawlHometax() {
     await page.goto("https://hometax.go.kr/websquare/websquare.html?w2xPath=/ui/pp/index_pp.xml&menuCd=UTXPPBAA32", { waitUntil: "networkidle" });
     await page.waitForTimeout(3e3);
     const allResults = [];
-    for (let p = 1; p <= 5; p++) {
+    for (let p = 1; p <= 3; p++) {
       console.log(`[Crawler] Scraping page ${p}...`);
       if (p > 1) {
         const pageButton = await page.$(`text="${p}"`);
@@ -262,6 +313,7 @@ async function crawlHometax() {
 
 // server/cloudinaryUpload.ts
 import { v2 as cloudinary } from "cloudinary";
+import axios from "axios";
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -269,14 +321,11 @@ cloudinary.config({
 });
 async function uploadToCloudinary(fileBuffer, fileName) {
   return new Promise((resolve, reject) => {
-    const publicId = fileName.split(".").slice(0, -1).join(".");
+    const publicId = `manual-files/${Date.now()}`;
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        resource_type: "auto",
-        folder: "hometax_manual",
-        public_id: publicId,
-        use_filename: true,
-        unique_filename: true
+        resource_type: "raw",
+        public_id: publicId
       },
       (error, result) => {
         if (error)
@@ -287,13 +336,101 @@ async function uploadToCloudinary(fileBuffer, fileName) {
     uploadStream.end(fileBuffer);
   });
 }
+function encodeFileNameRFC5987(fileName) {
+  return `UTF-8''${encodeURIComponent(fileName)}`;
+}
+function toASCIISafeFileName(fileName) {
+  try {
+    const lastDotIndex = fileName.lastIndexOf(".");
+    const name = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
+    const ext = lastDotIndex > 0 ? fileName.substring(lastDotIndex) : "";
+    let safeName = name.replace(/[^\w\s-]/g, "").replace(/\s+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
+    if (!safeName)
+      safeName = "file";
+    if (safeName.length > 200)
+      safeName = safeName.substring(0, 200);
+    return safeName + ext;
+  } catch (e) {
+    return "file.bin";
+  }
+}
+function registerDownloadRoute(app) {
+  app.get("/api/download", async (req, res) => {
+    const { url: url2, filename, mimeType } = req.query;
+    if (!url2 || !filename) {
+      return res.status(400).json({ error: "URL\uACFC \uD30C\uC77C\uBA85\uC774 \uD544\uC694\uD569\uB2C8\uB2E4." });
+    }
+    try {
+      const decodedFilename = decodeURIComponent(filename);
+      const finalMimeType = mimeType || "application/octet-stream";
+      console.log(`[Download] Downloading: ${decodedFilename} (${finalMimeType})`);
+      const response = await axios({
+        method: "get",
+        url: url2,
+        responseType: "stream",
+        timeout: 3e4
+      });
+      res.setHeader("Content-Type", finalMimeType);
+      const asciiFileName = toASCIISafeFileName(decodedFilename);
+      const rfc5987FileName = encodeFileNameRFC5987(decodedFilename);
+      const contentDisposition = `attachment; filename="${asciiFileName}"; filename*=${rfc5987FileName}`;
+      let isValidASCII = true;
+      for (let i = 0; i < contentDisposition.length; i++) {
+        if (contentDisposition.charCodeAt(i) > 127) {
+          isValidASCII = false;
+          break;
+        }
+      }
+      if (!isValidASCII) {
+        res.setHeader("Content-Disposition", `attachment; filename*=${rfc5987FileName}`);
+      } else {
+        res.setHeader("Content-Disposition", contentDisposition);
+      }
+      if (response.headers["content-length"]) {
+        res.setHeader("Content-Length", response.headers["content-length"]);
+      }
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+      response.data.pipe(res);
+      response.data.on("error", (err) => {
+        console.error("[Download] Stream error:", err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: "\uD30C\uC77C \uB2E4\uC6B4\uB85C\uB4DC \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4." });
+        }
+      });
+    } catch (err) {
+      console.error("[Download] Error:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: err.message || "\uD30C\uC77C \uB2E4\uC6B4\uB85C\uB4DC \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4." });
+      }
+    }
+  });
+}
 
 // server/routers.ts
 import express from "express";
 import multer from "multer";
 var upload = multer({ storage: multer.memoryStorage() });
 var appRouter = router({
-  hometax: {
+  // 인증 관련 라우터
+  auth: router({
+    me: publicProcedure.query(({ ctx }) => {
+      return ctx.user || null;
+    }),
+    logout: publicProcedure.mutation(({ ctx }) => {
+      ctx.res.clearCookie(COOKIE_NAME, {
+        maxAge: -1,
+        secure: true,
+        sameSite: "none",
+        httpOnly: true,
+        path: "/"
+      });
+      return { success: true };
+    })
+  }),
+  // 홈택스 관련 라우터
+  hometax: router({
     list: publicProcedure.query(async () => {
       return await listHometaxNotices();
     }),
@@ -316,15 +453,16 @@ var appRouter = router({
     delete: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       return await deleteHometaxNotice(input.id);
     })
-  },
-  manual: {
+  }),
+  // 매뉴얼 관련 라우터
+  manual: router({
     list: publicProcedure.query(async () => {
       return await listManualFiles();
     }),
     delete: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
       return await deleteManualFile(input.id);
     })
-  }
+  })
 });
 var expressRouter = express.Router();
 expressRouter.post("/manual/upload", upload.array("files"), async (req, res) => {
@@ -338,7 +476,12 @@ expressRouter.post("/manual/upload", upload.array("files"), async (req, res) => 
       const uploadResult = await uploadToCloudinary(file.buffer, file.originalname);
       const dbResult = await insertManualFile({
         title: file.originalname,
-        url: uploadResult.secure_url
+        fileUrl: uploadResult.secure_url,
+        fileType: file.originalname.split(".").pop() || "unknown",
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        uploader: "system"
+        // 기본값
       });
       results.push(dbResult);
     }
@@ -360,7 +503,7 @@ var HttpError = class extends Error {
 var ForbiddenError = (msg) => new HttpError(403, msg);
 
 // server/_core/sdk.ts
-import axios from "axios";
+import axios2 from "axios";
 import { parse as parseCookieHeader } from "cookie";
 import { SignJWT, jwtVerify } from "jose";
 
@@ -419,7 +562,7 @@ var OAuthService = class {
     return data;
   }
 };
-var createOAuthHttpClient = () => axios.create({
+var createOAuthHttpClient = () => axios2.create({
   baseURL: ENV.oAuthServerUrl,
   timeout: AXIOS_TIMEOUT_MS
 });
@@ -615,6 +758,43 @@ async function createContext(opts) {
 // server/_core/index.ts
 import path from "path";
 import { fileURLToPath } from "url";
+
+// server/hometaxProxy.ts
+function registerHometaxProxy(app) {
+  app.get("/api/hometax-view", (req, res) => {
+    const { url: url2 } = req.query;
+    if (!url2) {
+      return res.status(400).send("URL\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.");
+    }
+    const decodedUrl = decodeURIComponent(url2);
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="referrer" content="no-referrer">
+        <title>\uD648\uD0DD\uC2A4 \uC5F0\uACB0 \uC911...</title>
+        <script>
+          // Referer \uC5C6\uC774 \uC774\uB3D9\uD558\uB3C4\uB85D \uAC15\uC81C
+          window.onload = function() {
+            const a = document.createElement('a');
+            a.href = "${decodedUrl}";
+            a.rel = "noreferrer";
+            document.body.appendChild(a);
+            a.click();
+          };
+        </script>
+      </head>
+      <body>
+        <p>\uD648\uD0DD\uC2A4\uB85C \uC548\uC804\uD558\uAC8C \uC5F0\uACB0 \uC911\uC785\uB2C8\uB2E4. \uC7A0\uC2DC\uB9CC \uAE30\uB2E4\uB824\uC8FC\uC138\uC694...</p>
+      </body>
+      </html>
+    `);
+  });
+}
+
+// server/_core/index.ts
+import fs from "fs";
 var __filename = fileURLToPath(import.meta.url);
 var __dirname = path.dirname(__filename);
 async function startServer() {
@@ -622,6 +802,8 @@ async function startServer() {
   const app = express2();
   app.use(express2.json());
   app.use("/api", expressRouter);
+  registerDownloadRoute(app);
+  registerHometaxProxy(app);
   app.use(
     "/trpc",
     createExpressMiddleware({
@@ -630,10 +812,29 @@ async function startServer() {
     })
   );
   if (process.env.NODE_ENV === "production") {
-    const publicPath = path.join(__dirname, "../public");
+    let publicPath = path.join(__dirname, "../public");
+    if (!fs.existsSync(publicPath)) {
+      const altPath1 = path.join(__dirname, "../../dist/public");
+      const altPath2 = path.join(__dirname, "../../public");
+      const altPath3 = path.join(process.cwd(), "dist/public");
+      if (fs.existsSync(altPath1)) {
+        publicPath = altPath1;
+      } else if (fs.existsSync(altPath2)) {
+        publicPath = altPath2;
+      } else if (fs.existsSync(altPath3)) {
+        publicPath = altPath3;
+      }
+    }
+    console.log(`[Server] Serving static files from: ${publicPath}`);
     app.use(express2.static(publicPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(publicPath, "index.html"));
+      const indexPath = path.join(publicPath, "index.html");
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        console.error(`[Server] index.html not found at ${indexPath}`);
+        res.status(404).send("index.html not found");
+      }
     });
   }
   const port = process.env.PORT || 1e4;
