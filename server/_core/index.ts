@@ -1,85 +1,65 @@
+import "dotenv/config";
 import express from "express";
+import { createServer } from "http";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { appRouter, expressRouter } from "../routers";
+import { registerOAuthRoutes } from "./oauth";
+import { registerStorageProxy } from "./storageProxy";
+import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { serveStatic, setupVite } from "./vite";
+import { registerCloudinaryUpload } from "../cloudinaryUpload";
+import { runCrawler } from "../crawler";
+import cron from "node-cron";
 import { initDb } from "../db";
-import path from "path";
-import { fileURLToPath } from "url";
-import { registerDownloadRoute } from "../cloudinaryUpload";
-import { registerHometaxProxy } from "../hometaxProxy";
-import fs from "fs";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 async function startServer() {
-  // DB 초기화 (자가 치유 로직 포함)
-  await initDb();
-
   const app = express();
-  app.use(express.json());
-
-  // Express 전용 라우터 (파일 업로드 등)
-  app.use("/api", expressRouter);
+  const server = createServer(app);
   
-  // 다운로드 및 프록시 라우트 등록
-  registerDownloadRoute(app);
-  registerHometaxProxy(app);
+  // Configure body parser
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  
+  registerStorageProxy(app);
+  registerOAuthRoutes(app);
+  registerCloudinaryUpload(app);
+    
+  // DB 초기화
+  await initDb().catch(err => console.error("[DB] Init failed:", err));
+  
+  // 크롤링 스케줄러
+  cron.schedule("0 9 * * *", async () => {
+    console.log("[Cron] Running scheduled crawl...");
+    try {
+      await runCrawler(false);
+    } catch (err) {
+      console.error("[Cron] Crawl failed:", err);
+    }
+  });
 
-  // tRPC 미들웨어
+  // tRPC API
   app.use(
-    "/trpc",
+    "/api/trpc",
     createExpressMiddleware({
       router: appRouter,
       createContext,
     })
   );
 
-  // 정적 파일 서비스 (Production)
-  if (process.env.NODE_ENV === "production") {
-    // 여러 경로 시도: dist/public → public → ../public
-    let publicPath = path.join(__dirname, "../public");
-    
-    // 현재 경로가 없으면 다른 경로 시도
-    if (!fs.existsSync(publicPath)) {
-      const altPath1 = path.join(__dirname, "../../dist/public");
-      const altPath2 = path.join(__dirname, "../../public");
-      const altPath3 = path.join(process.cwd(), "dist/public");
-      
-      if (fs.existsSync(altPath1)) {
-        publicPath = altPath1;
-      } else if (fs.existsSync(altPath2)) {
-        publicPath = altPath2;
-      } else if (fs.existsSync(altPath3)) {
-        publicPath = altPath3;
-      }
-    }
-
-    console.log(`[Server] Serving static files from: ${publicPath}`);
-    
-    // 정적 파일 서비스
-    app.use(express.static(publicPath));
-    
-    // SPA 라우팅: 모든 요청을 index.html로 리다이렉트
-    app.get("*", (req, res) => {
-      const indexPath = path.join(publicPath, "index.html");
-      if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-      } else {
-        console.error(`[Server] index.html not found at ${indexPath}`);
-        res.status(404).send("index.html not found");
-      }
-    });
+  if (process.env.NODE_ENV === "development") {
+    await setupVite(app, server);
+  } else {
+    serveStatic(app);
   }
 
-  const port = process.env.PORT || 10000;
-  app.listen(port, "0.0.0.0", () => {
-    console.log(`[Server] Running on http://0.0.0.0:${port}`);
-    console.log(`[Auth] Initialized with baseURL: ${process.env.MANUS_OAUTH_BASE_URL || "https://api.manus.im"}`);
+  // Render 환경에서는 반드시 0.0.0.0으로 바인딩해야 포트 감지가 가능합니다.
+  const port = parseInt(process.env.PORT || "3000");
+  const host = "0.0.0.0"; 
+
+  server.listen(port, host, () => {
+    console.log(`Server is strictly listening on ${host}:${port}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 }
 
-startServer().catch((err) => {
-  console.error("[Server] Failed to start:", err);
-  process.exit(1);
-});
+startServer().catch(console.error);

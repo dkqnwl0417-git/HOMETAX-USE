@@ -1,128 +1,154 @@
-import { v2 as cloudinary } from "cloudinary";
 import type { Express } from "express";
+import multer from "multer";
+import { v2 as cloudinary } from "cloudinary";
+import { Readable } from "stream";
 import axios from "axios";
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+// Cloudinary 설정
+const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+const apiKey = process.env.CLOUDINARY_API_KEY;
+const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+if (cloudName && apiKey && apiSecret) {
+  cloudinary.config({
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+  });
+  console.log("[Cloudinary] Configured successfully.");
+}
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
 });
 
-export async function uploadToCloudinary(fileBuffer: Buffer, fileName: string): Promise<any> {
+function getFileType(originalname: string): string {
+  const ext = originalname.toLowerCase().match(/\.[^.]+$/)?.[0] || "";
+  return ext.replace(".", "") || "unknown";
+}
+
+function uploadToCloudinary(buffer: Buffer, originalname: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    // 파일명에서 확장자 제거 (Cloudinary public_id용)
     const publicId = `manual-files/${Date.now()}`;
     
-    const uploadStream = cloudinary.uploader.upload_stream(
+    const stream = cloudinary.uploader.upload_stream(
       {
         resource_type: "raw",
         public_id: publicId,
       },
       (error, result) => {
-        if (error) return reject(error);
-        resolve(result);
+        if (error) reject(error);
+        else resolve(result!.secure_url);
       }
     );
-
-    uploadStream.end(fileBuffer);
+    const readable = Readable.from(buffer);
+    readable.pipe(stream);
   });
 }
 
-/**
- * 파일명을 RFC 5987 형식으로 인코딩 (한글 지원)
- */
 function encodeFileNameRFC5987(fileName: string): string {
   return `UTF-8''${encodeURIComponent(fileName)}`;
 }
 
-/**
- * 파일명을 ASCII 안전 문자열로 변환
- */
 function toASCIISafeFileName(fileName: string): string {
-  try {
-    const lastDotIndex = fileName.lastIndexOf('.');
-    const name = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
-    const ext = lastDotIndex > 0 ? fileName.substring(lastDotIndex) : '';
-    
-    let safeName = name
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '');
-    
-    if (!safeName) safeName = 'file';
-    if (safeName.length > 200) safeName = safeName.substring(0, 200);
-    
-    return safeName + ext;
-  } catch (e) {
-    return 'file.bin';
-  }
+  const lastDotIndex = fileName.lastIndexOf('.');
+  const name = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
+  const ext = lastDotIndex > 0 ? fileName.substring(lastDotIndex) : '';
+  
+  let safeName = name
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '');
+  
+  return (safeName || 'file') + ext;
 }
 
-export function registerDownloadRoute(app: Express) {
+function getMimeType(fileType: string, mimeTypeFromDb?: string): string {
+  if (mimeTypeFromDb) return mimeTypeFromDb;
+  const mimeMap: Record<string, string> = {
+    pdf: "application/pdf",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    hwp: "application/x-hwp",
+    hwpx: "application/vnd.hancom.hwpx",
+    ppt: "application/vnd.ms-powerpoint",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    txt: "text/plain",
+    csv: "text/csv",
+    zip: "application/zip",
+  };
+  return mimeMap[fileType.toLowerCase()] || "application/octet-stream";
+}
+
+export function registerCloudinaryUpload(app: Express) {
+  app.post("/api/upload", upload.single("file"), async (req: any, res: any) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "파일이 없습니다." });
+      const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+      const fileBuffer = req.file.buffer;
+      const fileUrl = await uploadToCloudinary(fileBuffer, req.file.originalname);
+      const fileType = getFileType(originalName);
+      const mimeType = getMimeType(fileType, req.file.mimetype);
+      return res.json({ success: true, fileUrl, fileType, originalName, mimeType });
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message || "업로드 실패" });
+    }
+  });
+
   app.get("/api/download", async (req: any, res: any) => {
     const { url, filename, mimeType } = req.query;
-    
-    if (!url || !filename) {
-      return res.status(400).json({ error: "URL과 파일명이 필요합니다." });
-    }
-
+    if (!url || !filename) return res.status(400).json({ error: "URL과 파일명이 필요합니다." });
     try {
       const decodedFilename = decodeURIComponent(filename as string);
-      const finalMimeType = mimeType || "application/octet-stream";
-      
-      console.log(`[Download] Downloading: ${decodedFilename} (${finalMimeType})`);
-      
-      const response = await axios({
-        method: "get",
-        url: url as string,
-        responseType: "stream",
-        timeout: 30000,
-      });
-
-      res.setHeader("Content-Type", finalMimeType);
-      
-      const asciiFileName = toASCIISafeFileName(decodedFilename);
+      const response = await axios({ method: "get", url: url as string, responseType: "stream", timeout: 30000 });
+      res.setHeader("Content-Type", mimeType || "application/octet-stream");
       const rfc5987FileName = encodeFileNameRFC5987(decodedFilename);
-      
-      const contentDisposition = `attachment; filename="${asciiFileName}"; filename*=${rfc5987FileName}`;
-      
-      // 헤더 값 검증
-      let isValidASCII = true;
-      for (let i = 0; i < contentDisposition.length; i++) {
-        if (contentDisposition.charCodeAt(i) > 127) {
-          isValidASCII = false;
-          break;
-        }
-      }
-      
-      if (!isValidASCII) {
-        res.setHeader("Content-Disposition", `attachment; filename*=${rfc5987FileName}`);
-      } else {
-        res.setHeader("Content-Disposition", contentDisposition);
-      }
-      
-      if (response.headers["content-length"]) {
-        res.setHeader("Content-Length", response.headers["content-length"]);
-      }
-      
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-      
+      res.setHeader("Content-Disposition", `attachment; filename="${toASCIISafeFileName(decodedFilename)}"; filename*=${rfc5987FileName}`);
       response.data.pipe(res);
-      
-      response.data.on("error", (err: any) => {
-        console.error("[Download] Stream error:", err);
-        if (!res.headersSent) {
-          res.status(500).json({ error: "파일 다운로드 중 오류가 발생했습니다." });
-        }
-      });
     } catch (err: any) {
-      console.error("[Download] Error:", err);
-      if (!res.headersSent) {
-        res.status(500).json({ error: err.message || "파일 다운로드 중 오류가 발생했습니다." });
-      }
+      if (!res.headersSent) res.status(500).json({ error: err.message || "다운로드 실패" });
     }
+  });
+
+  // ─── 홈택스 URL 우회 리다이렉트 엔드포인트 (수정됨) ────────────────────────────
+  app.get("/api/hometax-view", (req: any, res: any) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).send("URL이 필요합니다.");
+    const decodedUrl = decodeURIComponent(url as string);
+    
+    // Referrer를 완전히 제거하여 홈택스 보안 정책 우회
+    res.setHeader("Content-Security-Policy", "referrer no-referrer");
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="referrer" content="no-referrer">
+        <title>홈택스 연결 중...</title>
+        <script>
+          window.onload = function() {
+            // 1. 메타 태그를 통한 리다이렉트 시도 (가장 확실함)
+            const meta = document.createElement('meta');
+            meta.httpEquiv = "refresh";
+            meta.content = "0;url=${decodedUrl}";
+            document.getElementsByTagName('head')[0].appendChild(meta);
+
+            // 2. 백업: location.replace (히스토리에 남지 않음)
+            setTimeout(function() {
+              window.location.replace("${decodedUrl}");
+            }, 100);
+          };
+        </script>
+      </head>
+      <body>
+        <p>홈택스로 안전하게 연결 중입니다. 잠시만 기다려주세요...</p>
+        <p style="font-size: 0.8em; color: #666;">자동으로 연결되지 않으면 <a href="${decodedUrl}" rel="noreferrer">여기</a>를 클릭하세요.</p>
+      </body>
+      </html>
+    `);
   });
 }
