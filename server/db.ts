@@ -8,7 +8,7 @@ let _db: any = null;
 async function getDb() {
   if (_db) return _db;
   const url = process.env.DATABASE_URL || "file:sqlite.db";
-  const authToken = process.env.DATABASE_AUTH_TOKEN;
+  const authToken = process.env.TURSO_AUTH_TOKEN;
   console.log("[DB] Connecting to:", url);
   const client = createClient({ url, authToken });
   _db = drizzle(client, { schema });
