@@ -13,7 +13,6 @@ async function getDb() {
   const authToken = process.env.TURSO_AUTH_TOKEN;
 
   console.log("[DB] Connecting to:", url);
-  console.log("TOKEN:", authToken);
 
   _client = createClient({ url, authToken });
   _db = drizzle(_client, { schema });
