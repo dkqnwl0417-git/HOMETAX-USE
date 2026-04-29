@@ -20,12 +20,13 @@ export async function initDb() {
   try {
     const db = await getDb(); 
     console.log("[DB] Initializing tables if not exist...");
-    
-    // 테이블 자동 생성 쿼리 (libsql 직접 실행)
-    const client = (db as any).$client || createClient({ 
-      url: process.env.DATABASE_URL || "file:sqlite.db", 
-      authToken: process.env.DATABASE_AUTH_TOKEN 
-    });
+
+    // ✅ drizzle 내부 client 사용
+    const client = (db as any).$client;
+
+    if (!client) {
+      throw new Error("[DB] Client not found. Check DB initialization.");
+    }
 
     await client.execute(`CREATE TABLE IF NOT EXISTS "users" (
       "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
