@@ -54,14 +54,41 @@ describe("File Upload Configuration", () => {
       "application/vnd.ms-excel",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "application/x-hwp",
+      "text/plain",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/zip",
+      "application/vnd.rar",
+      "application/x-7z-compressed",
+      "application/vnd.microsoft.portable-executable",
+      "application/x-bat",
+      "application/x-sh",
     ];
     expect(ALLOWED_MIMETYPES).toContain("application/pdf");
     expect(ALLOWED_MIMETYPES).toContain("application/x-hwp");
+    expect(ALLOWED_MIMETYPES).toContain("application/zip");
+    expect(ALLOWED_MIMETYPES).toContain("application/vnd.microsoft.portable-executable");
   });
 
   it("파일 확장자 검증", () => {
-    const ALLOWED_EXTENSIONS = [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".hwp"];
+    const ALLOWED_EXTENSIONS = [
+      ".pdf",
+      ".doc",
+      ".docx",
+      ".xls",
+      ".xlsx",
+      ".hwp",
+      ".txt",
+      ".pptx",
+      ".zip",
+      ".rar",
+      ".7z",
+      ".exe",
+      ".bat",
+      ".sh",
+    ];
     expect(ALLOWED_EXTENSIONS).toContain(".pdf");
     expect(ALLOWED_EXTENSIONS).toContain(".hwp");
+    expect(ALLOWED_EXTENSIONS).toContain(".zip");
+    expect(ALLOWED_EXTENSIONS).toContain(".exe");
   });
 });

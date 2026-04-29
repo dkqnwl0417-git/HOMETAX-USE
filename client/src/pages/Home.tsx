@@ -83,7 +83,8 @@ export default function Home() {
             </div>
             <h3 className="font-bold text-base text-foreground mb-2">자료실 관리</h3>
             <p className="text-sm font-light text-muted-foreground leading-relaxed">
-              PDF, Word, Excel, 한글 파일을 업로드하고 팀 내에서 공유하세요.
+              PDF, Word, Excel, 한글뿐 아니라 TXT, PPTX, ZIP, RAR, 7Z, EXE, BAT, SH 등
+              다양한 파일을 업로드하고 팀 내에서 공유하세요.
               로그인 없이 누구나 업로드 가능합니다.
             </p>
           </div>

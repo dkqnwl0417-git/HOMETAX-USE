@@ -284,14 +284,6 @@ export default function ManualFiles() {
     disabled: isUploading,
     multiple: true,
     maxSize: MAX_FILE_SIZE,
-    accept: {
-      "application/pdf": [".pdf"],
-      "application/msword": [".doc"],
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-      "application/vnd.ms-excel": [".xls"],
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
-      "application/x-hwp": [".hwp"],
-    },
   });
 
   const handleDownload = (url: string, filename: string, mimeType?: string) => {
@@ -318,7 +310,7 @@ export default function ManualFiles() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">내부 메뉴얼 자료실</h1>
-          <p className="text-muted-foreground mt-1">업무에 필요한 메뉴얼과 가이드를 공유합니다.</p>
+          <p className="text-muted-foreground mt-1">업무에 필요한 메뉴얼, 문서, 압축파일, 실행파일을 공유합니다.</p>
         </div>
       </div>
 
@@ -374,7 +366,7 @@ export default function ManualFiles() {
                     </div>
                     <p className="text-sm font-medium">파일을 드래그하거나 클릭하세요</p>
                     <p className="text-xs text-muted-foreground">
-                      여러 파일 동시 선택 가능 · PDF, Word, Excel, HWP · 최대 100MB
+                      여러 파일 동시 선택 가능 · 문서 / 압축파일 / 실행파일 등 업로드 가능 · 최대 100MB
                     </p>
                   </div>
                 )}

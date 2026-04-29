@@ -75,7 +75,6 @@ function toASCIISafeFileName(fileName: string): string {
 }
 
 function getMimeType(fileType: string, mimeTypeFromDb?: string): string {
-  if (mimeTypeFromDb) return mimeTypeFromDb;
   const mimeMap: Record<string, string> = {
     pdf: "application/pdf",
     doc: "application/msword",
@@ -89,7 +88,20 @@ function getMimeType(fileType: string, mimeTypeFromDb?: string): string {
     txt: "text/plain",
     csv: "text/csv",
     zip: "application/zip",
+    rar: "application/vnd.rar",
+    "7z": "application/x-7z-compressed",
+    exe: "application/vnd.microsoft.portable-executable",
+    bat: "application/x-bat",
+    sh: "application/x-sh",
   };
+
+  const normalizedMimeType = mimeTypeFromDb?.toLowerCase();
+  const genericMimeTypes = new Set(["application/octet-stream", "binary/octet-stream", ""]);
+
+  if (normalizedMimeType && !genericMimeTypes.has(normalizedMimeType)) {
+    return mimeTypeFromDb!;
+  }
+
   return mimeMap[fileType.toLowerCase()] || "application/octet-stream";
 }
 
