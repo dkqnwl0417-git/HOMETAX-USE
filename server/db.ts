@@ -3,34 +3,29 @@ import { createClient } from "@libsql/client";
 import * as schema from "../drizzle/schema";
 import { eq, and, gte, lte, desc, like, sql } from "drizzle-orm";
 
-let _client: any = null;
 let _db: any = null;
 
 async function getDb() {
   if (_db) return _db;
-
   const url = process.env.DATABASE_URL || "file:sqlite.db";
   const authToken = process.env.TURSO_AUTH_TOKEN;
-
   console.log("[DB] Connecting to:", url);
-
-  _client = createClient({ url, authToken });
-  _db = drizzle(_client, { schema });
-
+  console.log("TOKEN:", authToken);
+  const client = createClient({ url, authToken });
+  _db = drizzle(client, { schema });
   return _db;
 }
 
 export async function initDb() { 
   try {
-    await getDb();
-
+    const db = await getDb(); 
     console.log("[DB] Initializing tables if not exist...");
-
-    if (!_client) {
-      throw new Error("[DB] Client not initialized");
-    }
-
-    const client = _client;
+    
+    // 테이블 자동 생성 쿼리 (libsql 직접 실행)
+    const client = (db as any).$client || createClient({ 
+      url: process.env.DATABASE_URL || "file:sqlite.db", 
+      authToken: process.env.DATABASE_AUTH_TOKEN 
+    });
 
     await client.execute(`CREATE TABLE IF NOT EXISTS "users" (
       "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,

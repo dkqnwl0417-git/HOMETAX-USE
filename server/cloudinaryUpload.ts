@@ -1,24 +1,14 @@
 import type { Express } from "express";
 import multer from "multer";
-import { v2 as cloudinary } from "cloudinary";
-import { Readable } from "stream";
 import axios from "axios";
+import { createClient } from "@supabase/supabase-js";
 
-const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
+const MAX_UPLOAD_SIZE = 50 * 1024 * 1024;
 
-// Cloudinary 설정
-const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-const apiKey = process.env.CLOUDINARY_API_KEY;
-const apiSecret = process.env.CLOUDINARY_API_SECRET;
-
-if (cloudName && apiKey && apiSecret) {
-  cloudinary.config({
-    cloud_name: cloudName,
-    api_key: apiKey,
-    api_secret: apiSecret,
-  });
-  console.log("[Cloudinary] Configured successfully.");
-}
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_ANON_KEY!
+);
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -30,30 +20,23 @@ function getFileType(originalname: string): string {
   return ext.replace(".", "") || "unknown";
 }
 
-function uploadToCloudinary(buffer: Buffer, originalname: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const sanitizedBaseName = originalname
-      .replace(/\.[^/.]+$/, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "") || "manual-file";
+async function uploadToSupabase(buffer: Buffer, originalname: string): Promise<string> {
+  const fileName = `${Date.now()}-${Math.round(Math.random() * 1_000_000)}-${originalname}`;
 
-    const publicId = `manual-files/${Date.now()}-${Math.round(Math.random() * 1_000_000)}-${sanitizedBaseName}`;
+  const { error } = await supabase.storage
+    .from("manual-files")
+    .upload(fileName, buffer, {
+      contentType: "application/octet-stream",
+      upsert: false,
+    });
 
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        resource_type: "raw",
-        public_id: publicId,
-      },
-      (error, result) => {
-        if (error) reject(error);
-        else resolve(result!.secure_url);
-      }
-    );
-    const readable = Readable.from(buffer);
-    readable.pipe(stream);
-  });
+  if (error) throw new Error(error.message);
+
+  const { data } = supabase.storage
+    .from("manual-files")
+    .getPublicUrl(fileName);
+
+  return data.publicUrl;
 }
 
 function encodeFileNameRFC5987(fileName: string): string {
@@ -61,17 +44,15 @@ function encodeFileNameRFC5987(fileName: string): string {
 }
 
 function toASCIISafeFileName(fileName: string): string {
-  const lastDotIndex = fileName.lastIndexOf('.');
+  const lastDotIndex = fileName.lastIndexOf(".");
   const name = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
-  const ext = lastDotIndex > 0 ? fileName.substring(lastDotIndex) : '';
-
+  const ext = lastDotIndex > 0 ? fileName.substring(lastDotIndex) : "";
   let safeName = name
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '');
-
-  return (safeName || 'file') + ext;
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
+  return (safeName || "file") + ext;
 }
 
 function getMimeType(fileType: string, mimeTypeFromDb?: string): string {
@@ -123,7 +104,7 @@ export function registerCloudinaryUpload(app: Express) {
         if (!req.file) return res.status(400).json({ error: "파일이 없습니다." });
         const originalName = Buffer.from(req.file.originalname, "latin1").toString("utf8");
         const fileBuffer = req.file.buffer;
-        const fileUrl = await uploadToCloudinary(fileBuffer, originalName);
+        const fileUrl = await uploadToSupabase(fileBuffer, originalName);
         const fileType = getFileType(originalName);
         const mimeType = getMimeType(fileType, req.file.mimetype);
         return res.json({ success: true, fileUrl, fileType, originalName, mimeType });
@@ -138,23 +119,28 @@ export function registerCloudinaryUpload(app: Express) {
     if (!url || !filename) return res.status(400).json({ error: "URL과 파일명이 필요합니다." });
     try {
       const decodedFilename = decodeURIComponent(filename as string);
-      const response = await axios({ method: "get", url: url as string, responseType: "stream", timeout: 30000 });
+      const response = await axios({
+        method: "get",
+        url: url as string,
+        responseType: "stream",
+        timeout: 60000,
+      });
       res.setHeader("Content-Type", mimeType || "application/octet-stream");
       const rfc5987FileName = encodeFileNameRFC5987(decodedFilename);
-      res.setHeader("Content-Disposition", `attachment; filename="${toASCIISafeFileName(decodedFilename)}"; filename*=${rfc5987FileName}`);
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${toASCIISafeFileName(decodedFilename)}"; filename*=${rfc5987FileName}`
+      );
       response.data.pipe(res);
     } catch (err: any) {
       if (!res.headersSent) res.status(500).json({ error: err.message || "다운로드 실패" });
     }
   });
 
-  // ─── 홈택스 URL 우회 리다이렉트 엔드포인트 (수정됨) ────────────────────────────
   app.get("/api/hometax-view", (req: any, res: any) => {
     const { url } = req.query;
     if (!url) return res.status(400).send("URL이 필요합니다.");
     const decodedUrl = decodeURIComponent(url as string);
-
-    // Referrer를 완전히 제거하여 홈택스 보안 정책 우회
     res.setHeader("Content-Security-Policy", "referrer no-referrer");
     res.send(`
       <!DOCTYPE html>
@@ -165,13 +151,10 @@ export function registerCloudinaryUpload(app: Express) {
         <title>홈택스 연결 중...</title>
         <script>
           window.onload = function() {
-            // 1. 메타 태그를 통한 리다이렉트 시도 (가장 확실함)
             const meta = document.createElement('meta');
             meta.httpEquiv = "refresh";
             meta.content = "0;url=${decodedUrl}";
             document.getElementsByTagName('head')[0].appendChild(meta);
-
-            // 2. 백업: location.replace (히스토리에 남지 않음)
             setTimeout(function() {
               window.location.replace("${decodedUrl}");
             }, 100);
