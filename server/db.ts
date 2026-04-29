@@ -2,38 +2,14 @@ import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import * as schema from "../drizzle/schema";
 import { eq, and, gte, lte, desc, like, sql } from "drizzle-orm";
-import { mkdirSync } from "node:fs";
-import path from "node:path";
 
 let _db: any = null;
 
-function getDatabaseUrl() {
-  return process.env.DATABASE_URL || "file:sqlite.db";
-}
-
-function ensureSqliteDirectory(databaseUrl: string) {
-  if (!databaseUrl.startsWith("file:")) return;
-
-  const rawPath = databaseUrl.slice("file:".length);
-  if (!rawPath || rawPath === ":memory:") return;
-
-  const normalizedPath = rawPath.replace(/^\/{3}/, "/");
-  const directory = path.dirname(normalizedPath);
-
-  if (directory && directory !== ".") {
-    mkdirSync(directory, { recursive: true });
-  }
-}
-
 async function getDb() {
   if (_db) return _db;
-
-  const url = getDatabaseUrl();
+  const url = process.env.DATABASE_URL || (process.env.NODE_ENV === 'production' ? "file:/var/data/hometax.db" : "file:sqlite.db");
   const authToken = process.env.DATABASE_AUTH_TOKEN;
-
-  ensureSqliteDirectory(url);
   console.log("[DB] Connecting to:", url);
-
   const client = createClient({ url, authToken });
   _db = drizzle(client, { schema });
   return _db;
@@ -45,11 +21,8 @@ export async function initDb() {
     console.log("[DB] Initializing tables if not exist...");
     
     // 테이블 자동 생성 쿼리 (libsql 직접 실행)
-    const databaseUrl = getDatabaseUrl();
-    ensureSqliteDirectory(databaseUrl);
-
     const client = (db as any).$client || createClient({ 
-      url: databaseUrl, 
+      url: process.env.DATABASE_URL || (process.env.NODE_ENV === 'production' ? "file:/var/data/hometax.db" : "file:sqlite.db"), 
       authToken: process.env.DATABASE_AUTH_TOKEN 
     });
 
