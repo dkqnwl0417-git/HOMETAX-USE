@@ -6,28 +6,30 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
-import { 
-  Search, 
-  Upload, 
-  FileText, 
-  Download, 
-  Trash2, 
-  FileIcon, 
-  Loader2,
-  CheckCircle2,
-  AlertCircle
+import {
+  Search,
+  Upload,
+  FileText,
+  Download,
+  Trash2,
+  FileIcon,
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+
+type UploadProgress = {
+  total: number;
+  current: number;
+  currentFileName: string;
+};
 
 export default function ManualFiles() {
   const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
   const [isUploading, setIsUploading] = useState(false);
   const [uploaderName, setUploaderName] = useState("");
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStatus, setUploadStatus] = useState<{ name: string; status: 'pending' | 'success' | 'error' }[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const { toast } = useToast();
 
   const utils = trpc.useContext();
@@ -37,14 +39,7 @@ export default function ManualFiles() {
     pageSize: 10,
   });
 
-  const uploadMutation = trpc.manual.upload.useMutation({
-    onSuccess: () => {
-      utils.manual.list.invalidate();
-    },
-    onError: (err) => {
-      console.error("DB 저장 실패:", err);
-    }
-  });
+  const uploadMutation = trpc.manual.upload.useMutation();
 
   const deleteMutation = trpc.manual.delete.useMutation({
     onSuccess: () => {
@@ -64,85 +59,100 @@ export default function ManualFiles() {
     }
 
     setIsUploading(true);
-    setUploadProgress(0);
-    const initialStatus = acceptedFiles.map(f => ({ name: f.name, status: 'pending' as const }));
-    setUploadStatus(initialStatus);
 
     let successCount = 0;
-    let failCount = 0;
+    const failedUploads: string[] = [];
 
-    for (let i = 0; i < acceptedFiles.length; i++) {
-      const file = acceptedFiles[i];
-      const formData = new FormData();
-      formData.append("file", file);
-
-      try {
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
+    try {
+      for (let index = 0; index < acceptedFiles.length; index += 1) {
+        const file = acceptedFiles[index];
+        setUploadProgress({
+          total: acceptedFiles.length,
+          current: index + 1,
+          currentFileName: file.name,
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "업로드 실패");
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+
+          const response = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            throw new Error(errorData?.error || "업로드 실패");
+          }
+
+          const result = await response.json();
+
+          await uploadMutation.mutateAsync({
+            title: file.name.replace(/\.[^/.]+$/, ""),
+            fileUrl: result.fileUrl,
+            fileType: result.fileType,
+            originalName: result.originalName,
+            mimeType: result.mimeType,
+            uploader: uploaderName.trim(),
+          });
+
+          successCount += 1;
+        } catch (err: any) {
+          failedUploads.push(`${file.name}: ${err?.message || "알 수 없는 오류"}`);
         }
+      }
 
-        const result = await response.json();
-        
-        await uploadMutation.mutateAsync({
-          title: file.name.replace(/\.[^/.]+$/, ""),
-          fileUrl: result.fileUrl,
-          fileType: result.fileType,
-          originalName: result.originalName,
-          uploader: uploaderName,
+      await utils.manual.list.invalidate();
+
+      if (successCount > 0 && failedUploads.length === 0) {
+        toast({
+          title: "일괄 업로드 완료",
+          description: `${successCount}개 파일이 성공적으로 등록되었습니다.`,
         });
-
-        setUploadStatus(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'success' } : s));
-        successCount++;
-      } catch (err: any) {
-        console.error(`파일 업로드 실패 (${file.name}):`, err);
-        setUploadStatus(prev => prev.map((s, idx) => idx === i ? { ...s, status: 'error' } : s));
-        failCount++;
+      } else if (successCount > 0) {
+        toast({
+          title: "일부 업로드 완료",
+          description: `${successCount}개 성공 / ${failedUploads.length}개 실패`,
+        });
+        toast({
+          title: "실패 파일 확인",
+          description: failedUploads.slice(0, 3).join(" | "),
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "업로드 실패",
+          description: failedUploads[0] || "모든 파일 업로드에 실패했습니다.",
+          variant: "destructive",
+        });
       }
-      
-      setUploadProgress(Math.round(((i + 1) / acceptedFiles.length) * 100));
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(null);
     }
+  }, [toast, uploadMutation, uploaderName, utils.manual.list]);
 
-    setIsUploading(false);
-    toast({ 
-      title: "업로드 완료", 
-      description: `성공: ${successCount}건, 실패: ${failCount}건`,
-      variant: failCount > 0 ? "destructive" : "default"
-    });
-    
-    // 3초 후 상태 초기화
-    setTimeout(() => {
-      if (!isUploading) {
-        setUploadStatus([]);
-        setUploadProgress(0);
-      }
-    }, 3000);
-
-  }, [uploaderName, uploadMutation, toast, isUploading]);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     multiple: true,
+    disabled: isUploading,
     accept: {
-      'application/pdf': ['.pdf'],
-      'application/msword': ['.doc'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'application/vnd.ms-excel': ['.xls'],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'application/x-hwp': ['.hwp'],
+      "application/pdf": [".pdf"],
+      "application/msword": [".doc"],
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+      "application/vnd.ms-excel": [".xls"],
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+      "application/x-hwp": [".hwp"],
+      "application/vnd.hancom.hwpx": [".hwpx"],
     }
   });
 
   const handleDownload = (url: string, filename: string, mimeType?: string) => {
-    const downloadUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}${mimeType ? `&mimeType=${encodeURIComponent(mimeType)}` : ''}`;
-    const link = document.createElement('a');
+    const downloadUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}${mimeType ? `&mimeType=${encodeURIComponent(mimeType)}` : ""}`;
+    const link = document.createElement("a");
     link.href = downloadUrl;
-    link.setAttribute('download', filename);
+    link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -169,57 +179,52 @@ export default function ManualFiles() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Upload className="w-5 h-5" />
-                자료 일괄 등록
+                새 자료 등록
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">등록자 성함</label>
-                <Input 
-                  placeholder="이름을 입력하세요" 
+                <Input
+                  placeholder="이름을 입력하세요"
                   value={uploaderName}
                   onChange={(e) => setUploaderName(e.target.value)}
-                  disabled={isUploading}
                 />
               </div>
-              
-              <div 
-                {...getRootProps()} 
+
+              <div
+                {...getRootProps()}
                 className={`
                   border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-                  ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}
-                  ${isUploading ? 'opacity-50 pointer-events-none' : ''}
+                  ${isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50"}
+                  ${isUploading ? "opacity-50 pointer-events-none" : ""}
                 `}
               >
                 <input {...getInputProps()} />
-                <div className="flex flex-col items-center gap-2">
-                  <div className="p-3 bg-primary/10 rounded-full">
-                    <Upload className="w-6 h-6 text-primary" />
+                {isUploading ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="w-10 h-10 animate-spin text-primary" />
+                    <p className="text-sm font-medium">업로드 중...</p>
+                    {uploadProgress ? (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          {uploadProgress.current} / {uploadProgress.total} · {uploadProgress.currentFileName}
+                        </p>
+                        <p className="text-xs text-muted-foreground">여러 파일을 순차적으로 안전하게 등록하고 있습니다.</p>
+                      </>
+                    ) : null}
                   </div>
-                  <p className="text-sm font-medium">파일들을 드래그하거나 클릭하세요</p>
-                  <p className="text-xs text-muted-foreground">여러 파일 선택 가능 (최대 50MB/개)</p>
-                </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="p-3 bg-primary/10 rounded-full">
+                      <Upload className="w-6 h-6 text-primary" />
+                    </div>
+                    <p className="text-sm font-medium">파일을 여러 개 드래그하거나 클릭해서 선택하세요</p>
+                    <p className="text-xs text-muted-foreground">등록자 이름 1회 입력 후 일괄 업로드 가능합니다.</p>
+                    <p className="text-xs text-muted-foreground">PDF, Word, Excel, HWP/HWPX (파일당 최대 50MB)</p>
+                  </div>
+                )}
               </div>
-
-              {uploadStatus.length > 0 && (
-                <div className="space-y-3 mt-4">
-                  <div className="flex justify-between text-xs font-medium">
-                    <span>업로드 진행률</span>
-                    <span>{uploadProgress}%</span>
-                  </div>
-                  <Progress value={uploadProgress} className="h-2" />
-                  <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
-                    {uploadStatus.map((file, i) => (
-                      <div key={i} className="flex items-center justify-between text-[11px] py-1 border-b border-border last:border-0">
-                        <span className="truncate max-w-[150px]">{file.name}</span>
-                        {file.status === 'pending' && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
-                        {file.status === 'success' && <CheckCircle2 className="w-3 h-3 text-emerald-500" />}
-                        {file.status === 'error' && <AlertCircle className="w-3 h-3 text-destructive" />}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -227,8 +232,8 @@ export default function ManualFiles() {
         <div className="lg:col-span-2 space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input 
-              placeholder="자료 제목으로 검색..." 
+            <Input
+              placeholder="자료 제목으로 검색..."
               className="pl-10"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
@@ -254,7 +259,7 @@ export default function ManualFiles() {
                         <FileIcon className="w-6 h-6 text-primary" />
                       </div>
                       <div className="overflow-hidden">
-                        <h3 
+                        <h3
                           className="font-semibold truncate cursor-pointer hover:text-primary transition-colors"
                           onClick={() => handleDownload(file.fileUrl, `${file.title}.${file.fileType}`, file.mimeType || "application/octet-stream")}
                         >
@@ -272,17 +277,17 @@ export default function ManualFiles() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         size="icon"
                         className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
                         onClick={() => handleDelete(file.id, file.title)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         className="gap-2"
                         onClick={() => handleDownload(file.fileUrl, `${file.title}.${file.fileType}`, file.mimeType || "application/octet-stream")}
                       >
