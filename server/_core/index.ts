@@ -1,65 +1,50 @@
-import "dotenv/config";
 import express from "express";
-import { createServer } from "http";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
-import { registerStorageProxy } from "./storageProxy";
-import { appRouter } from "../routers";
+import { appRouter, expressRouter } from "../routers";
 import { createContext } from "./context";
-import { serveStatic, setupVite } from "./vite";
-import { registerCloudinaryUpload } from "../cloudinaryUpload";
-import { runCrawler } from "../crawler";
-import cron from "node-cron";
 import { initDb } from "../db";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function startServer() {
-  const app = express();
-  const server = createServer(app);
-  
-  // Configure body parser
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  
-  registerStorageProxy(app);
-  registerOAuthRoutes(app);
-  registerCloudinaryUpload(app);
-    
-  // DB 초기화
-  await initDb().catch(err => console.error("[DB] Init failed:", err));
-  
-  // 크롤링 스케줄러
-  cron.schedule("0 9 * * *", async () => {
-    console.log("[Cron] Running scheduled crawl...");
-    try {
-      await runCrawler(false);
-    } catch (err) {
-      console.error("[Cron] Crawl failed:", err);
-    }
-  });
+  // DB 초기화 (자가 치유 로직 포함)
+  await initDb();
 
-  // tRPC API
+  const app = express();
+  app.use(express.json());
+
+  // Express 전용 라우터 (파일 업로드 등)
+  app.use("/api", expressRouter);
+
+  // tRPC 미들웨어
   app.use(
-    "/api/trpc",
+    "/trpc",
     createExpressMiddleware({
       router: appRouter,
       createContext,
     })
   );
 
-  if (process.env.NODE_ENV === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
+  // 정적 파일 서비스 (Production)
+  if (process.env.NODE_ENV === "production") {
+    const publicPath = path.join(__dirname, "../public");
+    app.use(express.static(publicPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(publicPath, "index.html"));
+    });
   }
 
-  // Render 환경에서는 반드시 0.0.0.0으로 바인딩해야 포트 감지가 가능합니다.
-  const port = parseInt(process.env.PORT || "3000");
-  const host = "0.0.0.0"; 
-
-  server.listen(port, host, () => {
-    console.log(`Server is strictly listening on ${host}:${port}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  const port = process.env.PORT || 10000;
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`[Server] Running on http://0.0.0.0:${port}`);
+    console.log(`[Auth] Initialized with baseURL: ${process.env.MANUS_OAUTH_BASE_URL || "https://api.manus.im"}`);
   });
 }
 
-startServer().catch(console.error);
+startServer().catch((err) => {
+  console.error("[Server] Failed to start:", err);
+  process.exit(1);
+});

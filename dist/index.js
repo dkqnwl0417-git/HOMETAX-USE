@@ -5,12 +5,54 @@ var __export = (target, all) => {
 };
 
 // server/_core/index.ts
-import express from "express";
+import express2 from "express";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 
 // server/routers.ts
-import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
+
+// shared/const.ts
+var COOKIE_NAME = "app_session_id";
+var ONE_YEAR_MS = 1e3 * 60 * 60 * 24 * 365;
+var AXIOS_TIMEOUT_MS = 3e4;
+var UNAUTHED_ERR_MSG = "Please login (10001)";
+var NOT_ADMIN_ERR_MSG = "You do not have required permission (10002)";
+
+// server/_core/trpc.ts
+import { initTRPC, TRPCError } from "@trpc/server";
+import superjson from "superjson";
+var t = initTRPC.context().create({
+  transformer: superjson
+});
+var router = t.router;
+var publicProcedure = t.procedure;
+var requireUser = t.middleware(async (opts) => {
+  const { ctx, next } = opts;
+  if (!ctx.user) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
+  }
+  return next({
+    ctx: {
+      ...ctx,
+      user: ctx.user
+    }
+  });
+});
+var protectedProcedure = t.procedure.use(requireUser);
+var adminProcedure = t.procedure.use(
+  t.middleware(async (opts) => {
+    const { ctx, next } = opts;
+    if (!ctx.user || ctx.user.role !== "admin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+    }
+    return next({
+      ctx: {
+        ...ctx,
+        user: ctx.user
+      }
+    });
+  })
+);
 
 // server/db.ts
 import { drizzle } from "drizzle-orm/libsql";
@@ -73,136 +115,86 @@ var notifications = sqliteTable("notifications", {
 });
 
 // server/db.ts
-import { eq, desc, and, like, sql } from "drizzle-orm";
-var dbInstance = null;
-async function getDb() {
-  if (dbInstance)
-    return dbInstance;
-  const url = process.env.DATABASE_URL;
-  const authToken = process.env.TURSO_AUTH_TOKEN;
-  if (url && url.startsWith("libsql://")) {
-    console.log("[DB] Connecting to Turso Database...");
-    const client = createClient({ url, authToken });
-    dbInstance = drizzle(client, { schema: schema_exports });
-  } else {
-    console.log("[DB] Connecting to Local SQLite (Data may be lost on redeploy)");
-    const client = createClient({ url: "file:local.db" });
-    dbInstance = drizzle(client, { schema: schema_exports });
-  }
-  await initDb();
-  return dbInstance;
-}
+import { eq, desc } from "drizzle-orm";
+var url = process.env.DATABASE_URL || "file:test.db";
+var authToken = process.env.TURSO_AUTH_TOKEN;
+var client = createClient({ url, authToken });
+var db = drizzle(client, { schema: schema_exports });
+var encodeUrl = (url2) => Buffer.from(url2).toString("base64");
+var decodeUrl = (encoded) => Buffer.from(encoded, "base64").toString("utf-8");
 async function initDb() {
-  const db = await getDb();
+  console.log(`[DB] Connecting to ${url.startsWith("file:") ? "Local SQLite" : "Turso Database"}...`);
   try {
-    console.log("[DB] Starting Self-Healing Database Initialization...");
-    await db.run(sql`CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, open_id TEXT UNIQUE, username TEXT, avatar_url TEXT, role TEXT DEFAULT 'user', created_at INTEGER, updated_at INTEGER, last_signed_in INTEGER)`);
-    await db.run(sql`CREATE TABLE IF NOT EXISTS hometax_notices (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, url TEXT UNIQUE, tax_type TEXT, doc_type TEXT, date TEXT, view_count INTEGER DEFAULT 0, created_at INTEGER)`);
-    await db.run(sql`CREATE TABLE IF NOT EXISTS manual_files (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, file_url TEXT, file_type TEXT, original_name TEXT, mime_type TEXT, uploader TEXT, created_at INTEGER)`);
-    await db.run(sql`CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, notice_id INTEGER, title TEXT, url TEXT, is_read INTEGER DEFAULT 0, created_at INTEGER)`);
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS hometax_notices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        url TEXT NOT NULL,
+        tax_type TEXT NOT NULL,
+        doc_type TEXT NOT NULL,
+        date TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `);
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS manual_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        url TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `);
     console.log("[DB] Self-Healing Initialization Complete.");
   } catch (err) {
     console.error("[DB] Initialization Error:", err);
   }
 }
-async function getHometaxNotices(filters) {
-  const db = await getDb();
-  let conditions = [];
-  if (filters.taxType)
-    conditions.push(eq(hometaxNotices.taxType, filters.taxType));
-  if (filters.docType)
-    conditions.push(eq(hometaxNotices.docType, filters.docType));
-  const items = await db.query.hometaxNotices.findMany({
-    where: conditions.length > 0 ? and(...conditions) : void 0,
-    orderBy: [desc(hometaxNotices.date), desc(hometaxNotices.id)],
-    limit: filters.pageSize,
-    offset: (filters.page - 1) * filters.pageSize
-  });
-  const restoredItems = items.map((item) => ({
-    ...item,
-    url: item.url.startsWith("b64:") ? Buffer.from(item.url.substring(4), "base64").toString("utf8") : item.url
-  }));
-  return { items: restoredItems, total: 100 };
-}
 async function insertHometaxNotice(data) {
-  const db = await getDb();
-  try {
-    const encodedUrl = "b64:" + Buffer.from(data.url).toString("base64");
-    const existing = await db.query.hometaxNotices.findFirst({
-      where: eq(hometaxNotices.url, encodedUrl)
-    });
-    if (existing)
-      return null;
-    const result = await db.insert(hometaxNotices).values({
-      ...data,
-      url: encodedUrl,
-      createdAt: data.createdAt ? data.createdAt.getTime() : (/* @__PURE__ */ new Date()).getTime()
-    }).returning();
-    return result[0].id;
-  } catch (err) {
-    console.error("[DB] Error inserting notice:", err);
-    return null;
-  }
+  const encodedUrl = encodeUrl(data.url);
+  const existing = await db.select().from(hometaxNotices).where(eq(hometaxNotices.url, encodedUrl));
+  if (existing.length > 0)
+    return existing[0];
+  const result = await db.insert(hometaxNotices).values({
+    title: data.title,
+    url: encodedUrl,
+    taxType: data.taxType,
+    docType: data.docType,
+    date: data.date,
+    createdAt: Date.now()
+  }).returning();
+  return result[0];
+}
+async function listHometaxNotices() {
+  const results = await db.select().from(hometaxNotices).orderBy(desc(hometaxNotices.createdAt));
+  return results.map((item) => ({ ...item, url: decodeUrl(item.url) }));
 }
 async function deleteHometaxNotice(id) {
-  const db = await getDb();
-  try {
-    await db.delete(hometaxNotices).where(eq(hometaxNotices.id, id));
-    return true;
-  } catch (err) {
-    return false;
-  }
-}
-async function getManualFiles(filters) {
-  const db = await getDb();
-  let conditions = [];
-  if (filters.keyword)
-    conditions.push(like(manualFiles.title, `%${filters.keyword}%`));
-  const items = await db.query.manualFiles.findMany({
-    where: conditions.length > 0 ? and(...conditions) : void 0,
-    orderBy: [desc(manualFiles.createdAt)],
-    limit: filters.pageSize,
-    offset: (filters.page - 1) * filters.pageSize
-  });
-  return { items, total: 100 };
+  return await db.delete(hometaxNotices).where(eq(hometaxNotices.id, id));
 }
 async function insertManualFile(data) {
-  const db = await getDb();
-  try {
-    const result = await db.insert(manualFiles).values({
-      ...data,
-      createdAt: data.createdAt ? data.createdAt.getTime() : (/* @__PURE__ */ new Date()).getTime()
-    }).returning();
-    return result[0].id;
-  } catch (err) {
-    console.error("[DB] Error inserting manual file:", err);
-    return null;
-  }
+  const result = await db.insert(manualFiles).values({
+    title: data.title,
+    url: data.url,
+    createdAt: Date.now()
+  }).returning();
+  return result[0];
+}
+async function listManualFiles() {
+  return await db.select().from(manualFiles).orderBy(desc(manualFiles.createdAt));
 }
 async function deleteManualFile(id) {
-  const db = await getDb();
-  try {
-    await db.delete(manualFiles).where(eq(manualFiles.id, id));
-    return true;
-  } catch (err) {
-    return false;
+  return await db.delete(manualFiles).where(eq(manualFiles.id, id));
+}
+async function getUserByOpenId(openId) {
+  const result = await db.select().from(users).where(eq(users.openId, openId));
+  return result[0];
+}
+async function upsertUser(data) {
+  const existing = await getUserByOpenId(data.openId);
+  if (existing) {
+    return await db.update(users).set(data).where(eq(users.openId, data.openId)).returning();
   }
-}
-async function getNotifications(limit) {
-  const db = await getDb();
-  return db.query.notifications.findMany({
-    orderBy: [desc(notifications.createdAt)],
-    limit
-  });
-}
-async function getUnreadCount() {
-  const db = await getDb();
-  const result = await db.select({ count: sql`count(*)` }).from(notifications).where(eq(notifications.isRead, 0));
-  return Number(result[0]?.count || 0);
-}
-async function markAllNotificationsRead() {
-  const db = await getDb();
-  await db.update(notifications).set({ isRead: 1 });
+  return await db.insert(users).values(data).returning();
 }
 
 // server/hometaxCrawler.ts
@@ -253,8 +245,8 @@ async function crawlHometax() {
               docType = "\uD30C\uC77C\uC124\uBA85\uC11C";
             else if (title.includes("\uC81C\uCD9C\uC694\uB839"))
               docType = "\uC804\uC0B0\uB9E4\uCCB4 \uC81C\uCD9C\uC694\uB839";
-            const url = "https://hometax.go.kr/websquare/websquare.html?w2xPath=/ui/pp/index_pp.xml&menuCd=UTXPPBAA32";
-            allResults.push({ title, url, taxType, docType, date });
+            const url2 = "https://hometax.go.kr/websquare/websquare.html?w2xPath=/ui/pp/index_pp.xml&menuCd=UTXPPBAA32";
+            allResults.push({ title, url: url2, taxType, docType, date });
           }
         }
       }
@@ -268,116 +260,6 @@ async function crawlHometax() {
   }
 }
 
-// server/routers.ts
-var t = initTRPC.create();
-var appRouter = t.router({
-  hometax: t.router({
-    list: t.procedure.input(z.object({
-      taxType: z.string().optional(),
-      docType: z.string().optional(),
-      page: z.number().default(1),
-      pageSize: z.number().default(15)
-    })).query(async ({ input }) => {
-      return await getHometaxNotices(input);
-    }),
-    crawl: t.procedure.input(z.object({})).mutation(async () => {
-      try {
-        const results = await crawlHometax();
-        let inserted = 0;
-        for (const item of results) {
-          const id = await insertHometaxNotice(item);
-          if (id)
-            inserted++;
-        }
-        return { inserted };
-      } catch (err) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "\uD06C\uB864\uB9C1 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4."
-        });
-      }
-    }),
-    insert: t.procedure.input(z.object({
-      title: z.string(),
-      url: z.string(),
-      taxType: z.string(),
-      docType: z.string(),
-      date: z.string()
-    })).mutation(async ({ input }) => {
-      const id = await insertHometaxNotice(input);
-      if (!id) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "\uC774\uBBF8 \uC874\uC7AC\uD558\uB294 URL\uC774\uAC70\uB098 \uC800\uC7A5\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4."
-        });
-      }
-      return { id };
-    }),
-    delete: t.procedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
-      const success = await deleteHometaxNotice(input.id);
-      if (!success) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "\uC0AD\uC81C\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4."
-        });
-      }
-      return { success: true };
-    })
-  }),
-  manual: t.router({
-    list: t.procedure.input(z.object({
-      keyword: z.string().optional(),
-      page: z.number().default(1),
-      pageSize: z.number().default(10)
-    })).query(async ({ input }) => {
-      return await getManualFiles(input);
-    }),
-    upload: t.procedure.input(z.object({
-      title: z.string(),
-      fileUrl: z.string(),
-      fileType: z.string(),
-      originalName: z.string(),
-      uploader: z.string()
-    })).mutation(async ({ input }) => {
-      const id = await insertManualFile(input);
-      if (!id) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "\uD30C\uC77C \uC815\uBCF4\uB97C DB\uC5D0 \uC800\uC7A5\uD558\uB294 \uB370 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4."
-        });
-      }
-      return { id };
-    }),
-    delete: t.procedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
-      const success = await deleteManualFile(input.id);
-      if (!success) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "\uC0AD\uC81C\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4."
-        });
-      }
-      return { success: true };
-    })
-  }),
-  notification: t.router({
-    list: t.procedure.input(z.object({ limit: z.number().default(5) })).query(async ({ input }) => {
-      return await getNotifications(input.limit);
-    }),
-    unreadCount: t.procedure.query(async () => {
-      return await getUnreadCount();
-    }),
-    markAllRead: t.procedure.mutation(async () => {
-      await markAllNotificationsRead();
-      return { success: true };
-    })
-  })
-});
-
-// server/_core/index.ts
-import path from "path";
-import { fileURLToPath } from "url";
-import axios from "axios";
-
 // server/cloudinaryUpload.ts
 import { v2 as cloudinary } from "cloudinary";
 cloudinary.config({
@@ -385,101 +267,382 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
-async function uploadToCloudinary(fileBuffer, originalName) {
-  if (!process.env.CLOUDINARY_CLOUD_NAME) {
-    throw new Error("Cloudinary \uC124\uC815\uC774 \uC644\uB8CC\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4.");
-  }
+async function uploadToCloudinary(fileBuffer, fileName) {
   return new Promise((resolve, reject) => {
+    const publicId = fileName.split(".").slice(0, -1).join(".");
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         resource_type: "auto",
         folder: "hometax_manual",
-        // 한글 파일명 보존을 위해 public_id 설정 (특수문자 제거)
-        public_id: `file_${Date.now()}`
+        public_id: publicId,
+        use_filename: true,
+        unique_filename: true
       },
       (error, result) => {
         if (error)
           return reject(error);
-        if (!result)
-          return reject(new Error("Upload failed"));
-        resolve({
-          fileUrl: result.secure_url,
-          fileType: result.format || originalName.split(".").pop() || "file",
-          originalName
-        });
+        resolve(result);
       }
     );
     uploadStream.end(fileBuffer);
   });
 }
 
-// server/_core/index.ts
+// server/routers.ts
+import express from "express";
 import multer from "multer";
+var upload = multer({ storage: multer.memoryStorage() });
+var appRouter = router({
+  hometax: {
+    list: publicProcedure.query(async () => {
+      return await listHometaxNotices();
+    }),
+    crawl: publicProcedure.mutation(async () => {
+      const results = await crawlHometax();
+      for (const item of results) {
+        await insertHometaxNotice(item);
+      }
+      return { success: true, count: results.length };
+    }),
+    add: publicProcedure.input(z.object({
+      title: z.string(),
+      url: z.string(),
+      taxType: z.string(),
+      docType: z.string(),
+      date: z.string()
+    })).mutation(async ({ input }) => {
+      return await insertHometaxNotice(input);
+    }),
+    delete: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+      return await deleteHometaxNotice(input.id);
+    })
+  },
+  manual: {
+    list: publicProcedure.query(async () => {
+      return await listManualFiles();
+    }),
+    delete: publicProcedure.input(z.object({ id: z.number() })).mutation(async ({ input }) => {
+      return await deleteManualFile(input.id);
+    })
+  }
+});
+var expressRouter = express.Router();
+expressRouter.post("/manual/upload", upload.array("files"), async (req, res) => {
+  try {
+    const files = req.files;
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: "\uD30C\uC77C\uC774 \uC5C6\uC2B5\uB2C8\uB2E4." });
+    }
+    const results = [];
+    for (const file of files) {
+      const uploadResult = await uploadToCloudinary(file.buffer, file.originalname);
+      const dbResult = await insertManualFile({
+        title: file.originalname,
+        url: uploadResult.secure_url
+      });
+      results.push(dbResult);
+    }
+    res.json({ success: true, results });
+  } catch (error) {
+    console.error("[Upload Error]", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// shared/_core/errors.ts
+var HttpError = class extends Error {
+  constructor(statusCode, message) {
+    super(message);
+    this.statusCode = statusCode;
+    this.name = "HttpError";
+  }
+};
+var ForbiddenError = (msg) => new HttpError(403, msg);
+
+// server/_core/sdk.ts
+import axios from "axios";
+import { parse as parseCookieHeader } from "cookie";
+import { SignJWT, jwtVerify } from "jose";
+
+// server/_core/env.ts
+var ENV = {
+  appId: process.env.VITE_APP_ID ?? "",
+  cookieSecret: process.env.JWT_SECRET ?? "",
+  databaseUrl: process.env.DATABASE_URL ?? "",
+  databaseAuthToken: process.env.TURSO_AUTH_TOKEN || process.env.DATABASE_AUTH_TOKEN || "",
+  oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
+  ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
+  isProduction: process.env.NODE_ENV === "production",
+  forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
+  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? ""
+};
+
+// server/_core/sdk.ts
+var isNonEmptyString = (value) => typeof value === "string" && value.length > 0;
+var EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
+var GET_USER_INFO_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfo`;
+var GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfoWithJwt`;
+var OAuthService = class {
+  constructor(client2) {
+    this.client = client2;
+    console.log("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
+    if (!ENV.oAuthServerUrl) {
+      console.error(
+        "[OAuth] ERROR: OAUTH_SERVER_URL is not configured! Set OAUTH_SERVER_URL environment variable."
+      );
+    }
+  }
+  decodeState(state) {
+    const redirectUri = atob(state);
+    return redirectUri;
+  }
+  async getTokenByCode(code, state) {
+    const payload = {
+      clientId: ENV.appId,
+      grantType: "authorization_code",
+      code,
+      redirectUri: this.decodeState(state)
+    };
+    const { data } = await this.client.post(
+      EXCHANGE_TOKEN_PATH,
+      payload
+    );
+    return data;
+  }
+  async getUserInfoByToken(token) {
+    const { data } = await this.client.post(
+      GET_USER_INFO_PATH,
+      {
+        accessToken: token.accessToken
+      }
+    );
+    return data;
+  }
+};
+var createOAuthHttpClient = () => axios.create({
+  baseURL: ENV.oAuthServerUrl,
+  timeout: AXIOS_TIMEOUT_MS
+});
+var SDKServer = class {
+  client;
+  oauthService;
+  constructor(client2 = createOAuthHttpClient()) {
+    this.client = client2;
+    this.oauthService = new OAuthService(this.client);
+  }
+  deriveLoginMethod(platforms, fallback) {
+    if (fallback && fallback.length > 0)
+      return fallback;
+    if (!Array.isArray(platforms) || platforms.length === 0)
+      return null;
+    const set = new Set(
+      platforms.filter((p) => typeof p === "string")
+    );
+    if (set.has("REGISTERED_PLATFORM_EMAIL"))
+      return "email";
+    if (set.has("REGISTERED_PLATFORM_GOOGLE"))
+      return "google";
+    if (set.has("REGISTERED_PLATFORM_APPLE"))
+      return "apple";
+    if (set.has("REGISTERED_PLATFORM_MICROSOFT") || set.has("REGISTERED_PLATFORM_AZURE"))
+      return "microsoft";
+    if (set.has("REGISTERED_PLATFORM_GITHUB"))
+      return "github";
+    const first = Array.from(set)[0];
+    return first ? first.toLowerCase() : null;
+  }
+  /**
+   * Exchange OAuth authorization code for access token
+   * @example
+   * const tokenResponse = await sdk.exchangeCodeForToken(code, state);
+   */
+  async exchangeCodeForToken(code, state) {
+    return this.oauthService.getTokenByCode(code, state);
+  }
+  /**
+   * Get user information using access token
+   * @example
+   * const userInfo = await sdk.getUserInfo(tokenResponse.accessToken);
+   */
+  async getUserInfo(accessToken) {
+    const data = await this.oauthService.getUserInfoByToken({
+      accessToken
+    });
+    const loginMethod = this.deriveLoginMethod(
+      data?.platforms,
+      data?.platform ?? data.platform ?? null
+    );
+    return {
+      ...data,
+      platform: loginMethod,
+      loginMethod
+    };
+  }
+  parseCookies(cookieHeader) {
+    if (!cookieHeader) {
+      return /* @__PURE__ */ new Map();
+    }
+    const parsed = parseCookieHeader(cookieHeader);
+    return new Map(Object.entries(parsed));
+  }
+  getSessionSecret() {
+    const secret = ENV.cookieSecret;
+    return new TextEncoder().encode(secret);
+  }
+  /**
+   * Create a session token for a Manus user openId
+   * @example
+   * const sessionToken = await sdk.createSessionToken(userInfo.openId);
+   */
+  async createSessionToken(openId, options = {}) {
+    return this.signSession(
+      {
+        openId,
+        appId: ENV.appId,
+        name: options.name || ""
+      },
+      options
+    );
+  }
+  async signSession(payload, options = {}) {
+    const issuedAt = Date.now();
+    const expiresInMs = options.expiresInMs ?? ONE_YEAR_MS;
+    const expirationSeconds = Math.floor((issuedAt + expiresInMs) / 1e3);
+    const secretKey = this.getSessionSecret();
+    return new SignJWT({
+      openId: payload.openId,
+      appId: payload.appId,
+      name: payload.name
+    }).setProtectedHeader({ alg: "HS256", typ: "JWT" }).setExpirationTime(expirationSeconds).sign(secretKey);
+  }
+  async verifySession(cookieValue) {
+    if (!cookieValue) {
+      console.warn("[Auth] Missing session cookie");
+      return null;
+    }
+    try {
+      const secretKey = this.getSessionSecret();
+      const { payload } = await jwtVerify(cookieValue, secretKey, {
+        algorithms: ["HS256"]
+      });
+      const { openId, appId, name } = payload;
+      if (!isNonEmptyString(openId) || !isNonEmptyString(appId) || !isNonEmptyString(name)) {
+        console.warn("[Auth] Session payload missing required fields");
+        return null;
+      }
+      return {
+        openId,
+        appId,
+        name
+      };
+    } catch (error) {
+      console.warn("[Auth] Session verification failed", String(error));
+      return null;
+    }
+  }
+  async getUserInfoWithJwt(jwtToken) {
+    const payload = {
+      jwtToken,
+      projectId: ENV.appId
+    };
+    const { data } = await this.client.post(
+      GET_USER_INFO_WITH_JWT_PATH,
+      payload
+    );
+    const loginMethod = this.deriveLoginMethod(
+      data?.platforms,
+      data?.platform ?? data.platform ?? null
+    );
+    return {
+      ...data,
+      platform: loginMethod,
+      loginMethod
+    };
+  }
+  async authenticateRequest(req) {
+    const cookies = this.parseCookies(req.headers.cookie);
+    const sessionCookie = cookies.get(COOKIE_NAME);
+    const session = await this.verifySession(sessionCookie);
+    if (!session) {
+      throw ForbiddenError("Invalid session cookie");
+    }
+    const sessionUserId = session.openId;
+    const signedInAt = /* @__PURE__ */ new Date();
+    let user = await getUserByOpenId(sessionUserId);
+    if (!user) {
+      try {
+        const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
+        await upsertUser({
+          openId: userInfo.openId,
+          name: userInfo.name || null,
+          email: userInfo.email ?? null,
+          loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+          lastSignedIn: signedInAt
+        });
+        user = await getUserByOpenId(userInfo.openId);
+      } catch (error) {
+        console.error("[Auth] Failed to sync user from OAuth:", error);
+        throw ForbiddenError("Failed to sync user info");
+      }
+    }
+    if (!user) {
+      throw ForbiddenError("User not found");
+    }
+    await upsertUser({
+      openId: user.openId,
+      lastSignedIn: signedInAt
+    });
+    return user;
+  }
+};
+var sdk = new SDKServer();
+
+// server/_core/context.ts
+async function createContext(opts) {
+  let user = null;
+  try {
+    user = await sdk.authenticateRequest(opts.req);
+  } catch (error) {
+    user = null;
+  }
+  return {
+    req: opts.req,
+    res: opts.res,
+    user
+  };
+}
+
+// server/_core/index.ts
+import path from "path";
+import { fileURLToPath } from "url";
 var __filename = fileURLToPath(import.meta.url);
 var __dirname = path.dirname(__filename);
-var app = express();
-app.use(express.json());
-app.get("/api/download", async (req, res) => {
-  const { url, filename } = req.query;
-  if (!url)
-    return res.status(400).send("URL is required");
-  try {
-    const response = await axios({
-      method: "get",
-      url,
-      responseType: "stream"
-    });
-    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
-    res.setHeader("Content-Type", response.headers["content-type"]);
-    response.data.pipe(res);
-  } catch (err) {
-    res.status(500).send("Download failed");
-  }
-});
-app.get("/api/hometax-view", (req, res) => {
-  const { url } = req.query;
-  if (!url)
-    return res.status(400).send("URL is required");
-  res.send(`
-    <html>
-      <head>
-        <meta name="referrer" content="no-referrer">
-        <script>
-          window.location.href = "${url}";
-        </script>
-      </head>
-      <body>\uC5F0\uACB0 \uC911...</body>
-    </html>
-  `);
-});
-var upload = multer({ storage: multer.memoryStorage() });
-app.post("/api/upload", upload.single("file"), async (req, res) => {
-  if (!req.file)
-    return res.status(400).json({ error: "No file uploaded" });
-  try {
-    const result = await uploadToCloudinary(req.file.buffer, req.file.originalname);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-app.use(
-  "/api/trpc",
-  createExpressMiddleware({
-    router: appRouter,
-    createContext: () => ({})
-  })
-);
-var publicPath = path.join(__dirname, "../../dist/public");
-app.use(express.static(publicPath));
-app.get("*", (req, res) => {
-  res.sendFile(path.join(publicPath, "index.html"));
-});
-var PORT = Number(process.env.PORT) || 1e4;
-async function start() {
+async function startServer() {
   await initDb();
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Server] Running on http://0.0.0.0:${PORT}`);
+  const app = express2();
+  app.use(express2.json());
+  app.use("/api", expressRouter);
+  app.use(
+    "/trpc",
+    createExpressMiddleware({
+      router: appRouter,
+      createContext
+    })
+  );
+  if (process.env.NODE_ENV === "production") {
+    const publicPath = path.join(__dirname, "../public");
+    app.use(express2.static(publicPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(publicPath, "index.html"));
+    });
+  }
+  const port = process.env.PORT || 1e4;
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`[Server] Running on http://0.0.0.0:${port}`);
+    console.log(`[Auth] Initialized with baseURL: ${process.env.MANUS_OAUTH_BASE_URL || "https://api.manus.im"}`);
   });
 }
-start();
+startServer().catch((err) => {
+  console.error("[Server] Failed to start:", err);
+  process.exit(1);
+});
