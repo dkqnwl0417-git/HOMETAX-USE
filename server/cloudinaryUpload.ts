@@ -4,6 +4,8 @@ import { v2 as cloudinary } from "cloudinary";
 import { Readable } from "stream";
 import axios from "axios";
 
+const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
+
 // Cloudinary 설정
 const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
 const apiKey = process.env.CLOUDINARY_API_KEY;
@@ -20,7 +22,7 @@ if (cloudName && apiKey && apiSecret) {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  limits: { fileSize: MAX_UPLOAD_SIZE },
 });
 
 function getFileType(originalname: string): string {
@@ -30,8 +32,15 @@ function getFileType(originalname: string): string {
 
 function uploadToCloudinary(buffer: Buffer, originalname: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const publicId = `manual-files/${Date.now()}`;
-    
+    const sanitizedBaseName = originalname
+      .replace(/\.[^/.]+$/, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "") || "manual-file";
+
+    const publicId = `manual-files/${Date.now()}-${Math.round(Math.random() * 1_000_000)}-${sanitizedBaseName}`;
+
     const stream = cloudinary.uploader.upload_stream(
       {
         resource_type: "raw",
@@ -55,13 +64,13 @@ function toASCIISafeFileName(fileName: string): string {
   const lastDotIndex = fileName.lastIndexOf('.');
   const name = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
   const ext = lastDotIndex > 0 ? fileName.substring(lastDotIndex) : '';
-  
+
   let safeName = name
     .replace(/[^\w\s-]/g, '')
     .replace(/\s+/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_|_$/g, '');
-  
+
   return (safeName || 'file') + ext;
 }
 
@@ -85,18 +94,31 @@ function getMimeType(fileType: string, mimeTypeFromDb?: string): string {
 }
 
 export function registerCloudinaryUpload(app: Express) {
-  app.post("/api/upload", upload.single("file"), async (req: any, res: any) => {
-    try {
-      if (!req.file) return res.status(400).json({ error: "파일이 없습니다." });
-      const originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
-      const fileBuffer = req.file.buffer;
-      const fileUrl = await uploadToCloudinary(fileBuffer, req.file.originalname);
-      const fileType = getFileType(originalName);
-      const mimeType = getMimeType(fileType, req.file.mimetype);
-      return res.json({ success: true, fileUrl, fileType, originalName, mimeType });
-    } catch (err: any) {
-      return res.status(500).json({ error: err.message || "업로드 실패" });
-    }
+  app.post("/api/upload", (req: any, res: any) => {
+    upload.single("file")(req, res, async (uploadErr: any) => {
+      if (uploadErr instanceof multer.MulterError) {
+        if (uploadErr.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({ error: "파일 크기는 최대 100MB까지 업로드할 수 있습니다." });
+        }
+        return res.status(400).json({ error: uploadErr.message || "업로드 요청 처리에 실패했습니다." });
+      }
+
+      if (uploadErr) {
+        return res.status(500).json({ error: uploadErr.message || "업로드 처리 중 오류가 발생했습니다." });
+      }
+
+      try {
+        if (!req.file) return res.status(400).json({ error: "파일이 없습니다." });
+        const originalName = Buffer.from(req.file.originalname, "latin1").toString("utf8");
+        const fileBuffer = req.file.buffer;
+        const fileUrl = await uploadToCloudinary(fileBuffer, originalName);
+        const fileType = getFileType(originalName);
+        const mimeType = getMimeType(fileType, req.file.mimetype);
+        return res.json({ success: true, fileUrl, fileType, originalName, mimeType });
+      } catch (err: any) {
+        return res.status(500).json({ error: err.message || "업로드 실패" });
+      }
+    });
   });
 
   app.get("/api/download", async (req: any, res: any) => {
@@ -119,7 +141,7 @@ export function registerCloudinaryUpload(app: Express) {
     const { url } = req.query;
     if (!url) return res.status(400).send("URL이 필요합니다.");
     const decodedUrl = decodeURIComponent(url as string);
-    
+
     // Referrer를 완전히 제거하여 홈택스 보안 정책 우회
     res.setHeader("Content-Security-Policy", "referrer no-referrer");
     res.send(`
