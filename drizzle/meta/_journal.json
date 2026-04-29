@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1776927545115,
+      "tag": "0000_far_human_cannonball",
+      "breakpoints": true
+    }
+  ]
+}
