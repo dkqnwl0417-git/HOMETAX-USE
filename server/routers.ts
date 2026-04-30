@@ -212,14 +212,17 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return getNotifications(input.page, input.pageSize);
       }),
+
     unreadCount: publicProcedure.query(async () => {
       const count = await getUnreadCount();
       return { count };
     }),
+
     markAllRead: publicProcedure.mutation(async () => {
       await markAllNotificationsRead();
       return { success: true };
     }),
+
     delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
@@ -227,5 +230,6 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+});
 
 export type AppRouter = typeof appRouter;
