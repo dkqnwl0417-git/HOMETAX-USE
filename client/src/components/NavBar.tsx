@@ -32,20 +32,28 @@ const { data: notifData, isLoading: notifLoading, refetch } =
 const handleClick = async (notif: any) => {
   if (!notif.noticeId) return;
 
-  // 🔥 캐시 먼저 확인
   const cached = utils.hometax.byId.getData({ id: notif.noticeId });
 
+  let notice: any;
+
   if (cached) {
-    sessionStorage.setItem("pendingNoticeData", JSON.stringify(cached));
+    notice = cached;
   } else {
-    const notice = await utils.client.hometax.byId.query({
+    notice = await utils.client.hometax.byId.query({
       id: notif.noticeId,
     });
-    sessionStorage.setItem("pendingNoticeData", JSON.stringify(notice));
   }
 
+  sessionStorage.setItem("pendingNoticeData", JSON.stringify(notice));
   setNotifOpen(false);
-  setLocation("/hometax");
+
+  if (location === "/hometax") {
+    window.dispatchEvent(
+      new CustomEvent("openNoticeData", { detail: notice })
+    );
+  } else {
+    setLocation("/hometax");
+  }
 };
 
   const deleteMutation = trpc.notifications.delete.useMutation({
