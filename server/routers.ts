@@ -4,6 +4,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import { insertNotification } from "./db";
 import {
   deleteAllHometaxNotices,
   deleteHometaxNotice,
@@ -107,6 +108,13 @@ export const appRouter = router({
           viewCount: 0,
           createdAt: new Date(),
         });
+        
+        await insertNotification({
+  noticeId: id,
+  title: finalTitle,
+  url: input.url,
+});
+
         
         if (id === null) {
           throw new TRPCError({ 
