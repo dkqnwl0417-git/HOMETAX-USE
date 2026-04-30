@@ -560,27 +560,20 @@ export default function HometaxNotices() {
   const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
-  const utils = trpc.useUtils();
 
-useEffect(() => {
-  const pendingNoticeId = sessionStorage.getItem("pendingNoticeId");
-  if (!pendingNoticeId) return;
+  useEffect(() => {
+    const stored = sessionStorage.getItem("pendingNoticeData");
+    if (!stored) return;
 
-  const timer = setTimeout(async () => {
     try {
-      const notice = await utils.client.hometax.byId.query({
-        id: Number(pendingNoticeId),
-      });
-
+      const notice = JSON.parse(stored);
       setSelectedItem(notice);
-      sessionStorage.removeItem("pendingNoticeId");
-    } catch {
+      sessionStorage.removeItem("pendingNoticeData");
+    } catch (e) {
+      console.error("알림 데이터 파싱 실패", e);
       toast.error("알림에 연결된 공지를 불러오지 못했습니다.");
     }
-  }, 300); // 🔥 핵심: 약간 딜레이
-
-  return () => clearTimeout(timer);
-}, [utils]);
+  }, []);
   
   
   
