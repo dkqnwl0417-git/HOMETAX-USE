@@ -121,61 +121,83 @@ const handleClick = async (notif: any) => {
           </button>
 
           {/* Notification Dropdown */}
-          {notifOpen && (
-            <div className="absolute right-0 top-12 w-80 sm:w-96 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                <h3 className="font-semibold text-sm text-foreground">최근 등록 공지</h3>
-                <button
-                  onClick={() => setNotifOpen(false)}
-                  className="w-6 h-6 flex items-center justify-center rounded hover:bg-muted transition-colors"
-                >
-                  <X className="w-4 h-4 text-muted-foreground" />
-                </button>
-              </div>
-              <div className="max-h-80 overflow-y-auto">
-                {notifLoading ? (
-                  <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                    불러오는 중...
-                  </div>
-                ) : !notifData || notifData.items.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                    새로운 알림이 없습니다.
-                  </div>
-                ) : (
-                  notifData.items.map((notif) => (
-                    <div
-  key={notif.id}
-  onClick={() => handleClick(notif)}
-  className="flex items-start gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0 group cursor-pointer"
->
-  <div className="flex-1 min-w-0">
-    <p className="text-sm text-foreground line-clamp-2 group-hover:text-primary transition-colors">
-      {notif.title}
-    </p>
-    <p className="text-xs text-muted-foreground mt-0.5">
-      {new Date(notif.createdAt).toLocaleDateString("ko-KR")}
-    </p>
-  </div>
+{notifOpen && (
+  <div className="absolute right-0 top-12 w-80 sm:w-96 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50">
+    <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+      <h3 className="font-semibold text-sm text-foreground">최근 등록 공지</h3>
+      <button
+        onClick={() => setNotifOpen(false)}
+        className="w-6 h-6 flex items-center justify-center rounded hover:bg-muted transition-colors"
+      >
+        <X className="w-4 h-4 text-muted-foreground" />
+      </button>
+    </div>
 
-  <button
-    type="button"
-    onClick={(e) => {
-      e.stopPropagation();
-      deleteMutation.mutate({ id: notif.id });
-    }}
-    className="w-5 h-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-    title="알림 삭제"
-  >
-    <X className="w-3 h-3" />
-  </button>
-</div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
+    <div className="max-h-80 overflow-y-auto">
+      {notifLoading ? (
+        <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+          불러오는 중...
         </div>
-      </div>
-    </header>
-  );
-}
+      ) : !notifData || notifData.items.length === 0 ? (
+        <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+          새로운 알림이 없습니다.
+        </div>
+      ) : (
+        notifData.items.map((notif) => (
+          <div
+            key={notif.id}
+            onClick={() => handleClick(notif)}
+            className="flex items-start gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0 group cursor-pointer"
+          >
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-foreground line-clamp-2 group-hover:text-primary transition-colors">
+                {notif.title}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {new Date(notif.createdAt).toLocaleDateString("ko-KR")}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteMutation.mutate({ id: notif.id });
+              }}
+              className="w-5 h-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              title="알림 삭제"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ))
+      )}
+
+      {notifData && notifData.total > 5 && (
+        <div className="flex items-center justify-center gap-3 px-4 py-2 border-t border-border bg-muted/10">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="text-xs text-muted-foreground hover:text-primary disabled:opacity-40"
+          >
+            이전
+          </button>
+
+          <span className="text-xs text-muted-foreground">
+            {page} / {Math.ceil(notifData.total / 5)}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(Math.ceil(notifData.total / 5), p + 1))}
+            disabled={page >= Math.ceil(notifData.total / 5)}
+            className="text-xs text-muted-foreground hover:text-primary disabled:opacity-40"
+          >
+            다음
+          </button>
+        </div>
+      )}
+    </div>
+  </div>
+)}
