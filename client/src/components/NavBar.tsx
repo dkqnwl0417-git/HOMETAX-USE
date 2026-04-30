@@ -43,6 +43,13 @@ const handleClick = async (notif: any) => {
   setNotifOpen(false);
 };
 
+  const deleteMutation = trpc.notifications.delete.useMutation({
+  onSuccess: () => {
+    refetch();
+    refetchUnread();
+  },
+});
+
   // 외부 클릭 시 닫기
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
