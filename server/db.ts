@@ -230,17 +230,17 @@ export async function getManualFiles(filters: any) {
 export async function insertManualFile(data: any) {
   const db = await getDb();
   try {
+    console.log("[DB] insertManualFile data received:", JSON.stringify(data));
     const values = {
       title: data.title,
-      url: data.url,
-      date: data.date,
-      taxType: data.taxType,
-      docType: data.docType,
-      viewCount: 0,
-      content: data.content || null,
-      attachments: data.attachments || null,
+      fileUrl: data.fileUrl,
+      fileType: data.fileType,
+      originalName: data.originalName,
+      mimeType: data.mimeType || "application/octet-stream",
+      uploader: data.uploader,
       createdAt: new Date().getTime()
     };
+    console.log("[DB] insertManualFile values:", JSON.stringify(values));
     const result = await db.insert(schema.manualFiles).values(values).returning({ id: schema.manualFiles.id });
     if (result && result.length > 0) return result[0].id;
     return null;
