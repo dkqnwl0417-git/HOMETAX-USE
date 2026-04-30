@@ -5,7 +5,7 @@ import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
 export default function NavBar() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
@@ -32,15 +32,10 @@ const { data: notifData, isLoading: notifLoading, refetch } =
 const handleClick = async (notif: any) => {
   if (!notif.noticeId) return;
 
-  const notice = await utils.client.hometax.byId.query({
-    id: notif.noticeId,
-  });
-
-  window.dispatchEvent(
-    new CustomEvent("openNotice", { detail: notice })
-  );
+  sessionStorage.setItem("pendingNoticeId", String(notif.noticeId));
 
   setNotifOpen(false);
+  setLocation("/hometax");
 };
 
   const deleteMutation = trpc.notifications.delete.useMutation({
