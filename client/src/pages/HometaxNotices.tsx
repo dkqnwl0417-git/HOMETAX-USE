@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useDropzone, type FileRejection } from "react-dropzone";
 import {
   Eye, Search, RefreshCw, ChevronLeft, ChevronRight, Filter, Trash2, Plus, X, Loader2,
@@ -549,6 +549,17 @@ export default function HometaxNotices() {
   const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  
+  useEffect(() => {
+  const handler = (e: Event) => {
+    const customEvent = e as CustomEvent;
+    setSelectedItem(customEvent.detail);
+  };
+
+  window.addEventListener("openNotice", handler);
+  return () => window.removeEventListener("openNotice", handler);
+}, []);
+  
 
   const queryInput = useMemo(
     () => ({
