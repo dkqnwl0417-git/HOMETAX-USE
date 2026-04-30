@@ -208,3 +208,8 @@ const handleClick = async (notif: any) => {
     </div>
   </div>
 )}
+        </div>
+      </div>
+    </header>
+  );
+}
