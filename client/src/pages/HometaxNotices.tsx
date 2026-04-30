@@ -21,7 +21,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const TAX_TYPES = ["전체", "부가가치세", "종합소득세", "원천세", "기타"];
+const TAX_TYPES = ["전체", "부가가치세", "종합소득세", "법인세", "원천세", "기타"];
 const DOC_TYPES = ["전체", "파일설명서", "전산매체 제출요령", "기타"];
 const PAGE_SIZE = 20;
 
@@ -29,6 +29,7 @@ function TaxBadge({ type }: { type: string }) {
   const cls = {
     부가가치세: "bg-blue-50 text-blue-700 border-blue-100",
     종합소득세: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    법인세: "bg-purple-50 text-purple-700 border-purple-100",
     원천세: "bg-amber-50 text-amber-700 border-amber-100",
     기타: "bg-gray-100 text-gray-600 border-gray-200",
   }[type] ?? "bg-gray-100 text-gray-600 border-gray-200";
