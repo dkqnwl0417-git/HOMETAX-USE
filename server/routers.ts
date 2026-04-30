@@ -157,6 +157,7 @@ export const appRouter = router({
       )
       .mutation(async ({ input }) => {
         const title = input.title?.trim() || input.originalName.replace(/\.[^/.]+$/, "");
+        console.log("[Router] insertManualFile input:", JSON.stringify(input));
         const id = await insertManualFile({
           title,
           fileUrl: input.fileUrl,
