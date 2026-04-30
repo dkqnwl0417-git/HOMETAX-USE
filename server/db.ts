@@ -10,21 +10,19 @@ async function getDb() {
   const url = process.env.DATABASE_URL || "file:sqlite.db";
   const authToken = process.env.TURSO_AUTH_TOKEN;
   console.log("[DB] Connecting to:", url);
-  console.log("TOKEN:", authToken);
   const client = createClient({ url, authToken });
   _db = drizzle(client, { schema });
   return _db;
 }
 
-export async function initDb() { 
+export async function initDb() {
   try {
-    const db = await getDb(); 
+    const db = await getDb();
     console.log("[DB] Initializing tables if not exist...");
-    
-    // 테이블 자동 생성 쿼리 (libsql 직접 실행)
-    const client = (db as any).$client || createClient({ 
-      url: process.env.DATABASE_URL || "file:sqlite.db", 
-      authToken: process.env.DATABASE_AUTH_TOKEN 
+
+    const client = (db as any).$client || createClient({
+      url: process.env.DATABASE_URL || "file:sqlite.db",
+      authToken: process.env.DATABASE_AUTH_TOKEN
     });
 
     await client.execute(`CREATE TABLE IF NOT EXISTS "users" (
@@ -82,10 +80,10 @@ export async function initDb() {
   }
 }
 
-// ─── 홈택스 전자신고 설명서 ───────────────────────────────────────────────
 export async function getHometaxNotices(filters: any) {
   const db = await getDb();
-  let conditions = [];
+  const conditions = [];
+
   if (filters.startDate) conditions.push(gte(schema.hometaxNotices.date, filters.startDate));
   if (filters.endDate) conditions.push(lte(schema.hometaxNotices.date, filters.endDate));
   if (filters.taxType) conditions.push(eq(schema.hometaxNotices.taxType, filters.taxType));
@@ -101,10 +99,10 @@ export async function getHometaxNotices(filters: any) {
   const countResult = await db.select({ count: sql`count(*)` })
     .from(schema.hometaxNotices)
     .where(conditions.length > 0 ? and(...conditions) : undefined);
-  
-  return { 
-    items, 
-    total: Number(countResult[0]?.count || 0) 
+
+  return {
+    items,
+    total: Number(countResult[0]?.count || 0)
   };
 }
 
@@ -160,23 +158,6 @@ export async function insertHometaxNotice(data: any) {
   }
 }
 
-    const result = await db.insert(schema.hometaxNotices).values(values).returning({ id: schema.hometaxNotices.id });
-    
-    if (result && result.length > 0) {
-      console.log("[DB] Successfully inserted notice, ID:", result[0].id);
-      return result[0].id;
-    }
-    return null;
-  } catch (err: any) {
-    console.error("[DB] Error in insertHometaxNotice:", err);
-    // 테이블이 없는 경우를 대비해 초기화 재시도
-    if (err.message?.includes("no such table")) {
-      await initDb();
-    }
-    return null;
-  }
-}
-
 export async function urlExists(url: string) {
   try {
     const db = await getDb();
@@ -184,7 +165,7 @@ export async function urlExists(url: string) {
       where: eq(schema.hometaxNotices.url, url)
     });
     return !!existing;
-  } catch (err) {
+  } catch {
     return false;
   }
 }
@@ -206,6 +187,7 @@ export async function getHometaxNoticeById(id: number) {
 
 export async function updateHometaxNotice(id: number, data: any) {
   const db = await getDb();
+
   try {
     await db.update(schema.hometaxNotices)
       .set({
@@ -218,6 +200,7 @@ export async function updateHometaxNotice(id: number, data: any) {
         attachments: data.attachments || null,
       })
       .where(eq(schema.hometaxNotices.id, id));
+
     return true;
   } catch (err) {
     console.error("[DB] Error in updateHometaxNotice:", err);
@@ -227,10 +210,11 @@ export async function updateHometaxNotice(id: number, data: any) {
 
 export async function deleteHometaxNotice(id: number) {
   const db = await getDb();
+
   try {
     await db.delete(schema.hometaxNotices).where(eq(schema.hometaxNotices.id, id));
     return true;
-  } catch (err) {
+  } catch {
     return false;
   }
 }
@@ -241,12 +225,12 @@ export async function deleteAllHometaxNotices() {
   return Number(result.rowsAffected || 0);
 }
 
-// ─── 내부 메뉴얼 자료실 ───────────────────────────────────────────────────
 export async function getManualFiles(filters: any) {
   const db = await getDb();
-  let conditions = [];
+  const conditions = [];
+
   if (filters.keyword) conditions.push(like(schema.manualFiles.title, `%${filters.keyword}%`));
-  
+
   const items = await db.query.manualFiles.findMany({
     where: conditions.length > 0 ? and(...conditions) : undefined,
     orderBy: [desc(schema.manualFiles.createdAt)],
@@ -258,16 +242,16 @@ export async function getManualFiles(filters: any) {
     .from(schema.manualFiles)
     .where(conditions.length > 0 ? and(...conditions) : undefined);
 
-  return { 
-    items, 
-    total: Number(countResult[0]?.count || 0) 
+  return {
+    items,
+    total: Number(countResult[0]?.count || 0)
   };
 }
 
 export async function insertManualFile(data: any) {
   const db = await getDb();
+
   try {
-    console.log("[DB] insertManualFile data received:", JSON.stringify(data));
     const values = {
       title: data.title,
       fileUrl: data.fileUrl,
@@ -277,8 +261,12 @@ export async function insertManualFile(data: any) {
       uploader: data.uploader,
       createdAt: new Date().getTime()
     };
-    console.log("[DB] insertManualFile values:", JSON.stringify(values));
-    const result = await db.insert(schema.manualFiles).values(values).returning({ id: schema.manualFiles.id });
+
+    const result = await db
+      .insert(schema.manualFiles)
+      .values(values)
+      .returning({ id: schema.manualFiles.id });
+
     if (result && result.length > 0) return result[0].id;
     return null;
   } catch (err: any) {
@@ -290,15 +278,15 @@ export async function insertManualFile(data: any) {
 
 export async function deleteManualFile(id: number) {
   const db = await getDb();
+
   try {
     await db.delete(schema.manualFiles).where(eq(schema.manualFiles.id, id));
     return true;
-  } catch (err) {
+  } catch {
     return false;
   }
 }
 
-// ─── 알림 ─────────────────────────────────────────────────────────────────
 export async function deleteExpiredNotifications() {
   const db = await getDb();
   const sevenDaysAgo = new Date().getTime() - 7 * 24 * 60 * 60 * 1000;
@@ -340,9 +328,11 @@ export async function deleteNotification(id: number) {
 
 export async function getUnreadCount() {
   const db = await getDb();
+
   const result = await db.select({ count: sql`count(*)` })
     .from(schema.notifications)
     .where(eq(schema.notifications.isRead, 0));
+
   return Number(result[0]?.count || 0);
 }
 
@@ -354,6 +344,7 @@ export async function markAllNotificationsRead() {
 export async function insertNotification(data: any) {
   try {
     const db = await getDb();
+
     await db.insert(schema.notifications).values({
       noticeId: data.noticeId,
       title: data.title,
@@ -366,7 +357,6 @@ export async function insertNotification(data: any) {
   }
 }
 
-// ─── 사용자 (Auth) ────────────────────────────────────────────────────────
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   return db.query.users.findFirst({ where: eq(schema.users.openId, openId) });
@@ -375,19 +365,23 @@ export async function getUserByOpenId(openId: string) {
 export async function upsertUser(data: any) {
   const db = await getDb();
   const existing = await getUserByOpenId(data.openId);
+
   if (existing) {
     await db.update(schema.users).set({
       ...data,
       updatedAt: new Date().getTime(),
       lastSignedIn: new Date().getTime()
     }).where(eq(schema.users.openId, data.openId));
+
     return existing;
   }
+
   const result = await db.insert(schema.users).values({
     ...data,
     createdAt: new Date().getTime(),
     updatedAt: new Date().getTime(),
     lastSignedIn: new Date().getTime()
   }).returning();
+
   return result[0];
 }
