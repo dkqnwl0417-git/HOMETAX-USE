@@ -16,6 +16,54 @@ const TAX_TYPES = ["전체", "부가가치세", "종합소득세", "법인세", 
 const DOC_TYPES = ["전체", "파일설명서", "전산매체 제출요령", "기타"];
 const PAGE_SIZE = 20;
 
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+interface UploadedAttachment {
+  name: string;
+  url: string;
+  fileType: string;
+  mimeType?: string;
+}
+
+interface UploadApiResponse {
+  success: boolean;
+  fileUrl: string;
+  fileType: string;
+  originalName: string;
+  mimeType?: string;
+}
+
+function uploadFileWithProgress(file: File): Promise<UploadApiResponse> {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload");
+
+    xhr.addEventListener("load", () => {
+      try {
+        const responseJson = JSON.parse(xhr.responseText || "{}");
+
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(responseJson);
+          return;
+        }
+
+        reject(new Error(responseJson.error || "업로드에 실패했습니다."));
+      } catch {
+        reject(new Error("업로드 응답 처리에 실패했습니다."));
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      reject(new Error("네트워크 오류로 업로드에 실패했습니다."));
+    });
+
+    xhr.send(formData);
+  });
+}
+
 function TaxBadge({ type }: { type: string }) {
   const cls = {
     부가가치세: "bg-blue-50 text-blue-700 border-blue-100",
@@ -238,6 +286,8 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [newDate, setNewDate] = useState(new Date().toISOString().split("T")[0]);
   const [newContent, setNewContent] = useState("");
   const [newAttachments, setNewAttachments] = useState("");
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedAttachment[]>([]);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
 
   const createMutation = trpc.hometax.create.useMutation({
     onSuccess: () => {
@@ -252,14 +302,16 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     if (!newUrl.trim()) { toast.error("URL을 입력해주세요."); return; }
     if (!newDate) { toast.error("공지 날짜를 선택해주세요."); return; }
     createMutation.mutate({
-      title: newTitle.trim() || undefined,
-      url: newUrl.trim(),
-      taxType: newTaxType,
-      docType: newDocType,
-      date: newDate,
-      content: newContent,
-      attachments: newAttachments,
-    });
+  title: newTitle.trim() || undefined,
+  url: newUrl.trim(),
+  taxType: newTaxType,
+  docType: newDocType,
+  date: newDate,
+  content: newContent,
+  attachments: uploadedFiles.length > 0
+    ? JSON.stringify(uploadedFiles)
+    : newAttachments,
+});
   };
 
   return (
