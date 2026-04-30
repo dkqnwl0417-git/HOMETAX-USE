@@ -297,7 +297,48 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     },
     onError: (err) => toast.error("등록 실패: " + err.message),
   });
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0 || isUploadingFile) return;
 
+    setIsUploadingFile(true);
+
+    try {
+      const uploaded: UploadedAttachment[] = [];
+
+      for (const file of acceptedFiles) {
+        const result = await uploadFileWithProgress(file);
+
+        uploaded.push({
+          name: result.originalName,
+          url: result.fileUrl,
+          fileType: result.fileType,
+          mimeType: result.mimeType,
+        });
+      }
+
+      setUploadedFiles((prev) => [...prev, ...uploaded]);
+      toast.success(`${uploaded.length}개 파일이 업로드되었습니다.`);
+    } catch (err: any) {
+      toast.error(err?.message || "파일 업로드에 실패했습니다.");
+    } finally {
+      setIsUploadingFile(false);
+    }
+  }, [isUploadingFile]);
+
+  const onDropRejected = useCallback((fileRejections: FileRejection[]) => {
+    if (fileRejections.length === 0) return;
+
+    toast.error("업로드할 수 없는 파일입니다. 파일 용량 또는 확장자를 확인해주세요.");
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    onDropRejected,
+    disabled: isUploadingFile,
+    multiple: true,
+    maxSize: MAX_FILE_SIZE,
+  });
+  
   const handleSubmit = () => {
     if (!newUrl.trim()) { toast.error("URL을 입력해주세요."); return; }
     if (!newDate) { toast.error("공지 날짜를 선택해주세요."); return; }
