@@ -289,27 +289,32 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
           </div>
 
           {/* 원본 URL */}
-<div className="space-y-1.5">
-  <label className="text-xs font-semibold text-muted-foreground">원본 URL</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground">원본 URL</label>
 
-  {isEditing ? (
-    <Input
-      value={editUrl}
-      onChange={(e) => setEditUrl(e.target.value)}
-      placeholder="https://..."
-      className="bg-background"
-    />
-  ) : (
-    <a
-      href={item.url}
-      target="_blank"
-      rel="noreferrer"
-      className="text-xs text-primary hover:underline break-all"
-    >
-      {item.url}
-    </a>
-  )}
-</div>
+            {isEditing ? (
+              <Input
+                value={editUrl}
+                onChange={(e) => setEditUrl(e.target.value)}
+                placeholder="https://..."
+                className="bg-background"
+              />
+            ) : (
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-primary hover:underline break-all"
+              >
+                {item.url}
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── 수기 등록 모달 ───────────────────────────────────────────────────────
 function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
