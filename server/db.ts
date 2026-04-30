@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import * as schema from "../drizzle/schema";
-import { eq, and, gte, lte, desc, like, sql } from "drizzle-orm";
+import { eq, and, gte, lte, lt, desc, like, sql } from "drizzle-orm";
 
 let _db: any = null;
 
@@ -264,12 +264,43 @@ export async function deleteManualFile(id: number) {
 }
 
 // ─── 알림 ─────────────────────────────────────────────────────────────────
-export async function getNotifications(limit: number) {
+export async function deleteExpiredNotifications() {
   const db = await getDb();
-  return db.query.notifications.findMany({
+  const sevenDaysAgo = new Date().getTime() - 7 * 24 * 60 * 60 * 1000;
+
+  await db.delete(schema.notifications)
+    .where(lt(schema.notifications.createdAt, sevenDaysAgo));
+}
+
+export async function getNotifications(page = 1, pageSize = 5) {
+  const db = await getDb();
+
+  await deleteExpiredNotifications();
+
+  const items = await db.query.notifications.findMany({
     orderBy: [desc(schema.notifications.createdAt)],
-    limit,
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
   });
+
+  const countResult = await db.select({ count: sql`count(*)` })
+    .from(schema.notifications);
+
+  return {
+    items,
+    total: Number(countResult[0]?.count || 0),
+    page,
+    pageSize,
+  };
+}
+
+export async function deleteNotification(id: number) {
+  const db = await getDb();
+
+  await db.delete(schema.notifications)
+    .where(eq(schema.notifications.id, id));
+
+  return true;
 }
 
 export async function getUnreadCount() {
