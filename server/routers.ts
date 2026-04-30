@@ -119,7 +119,7 @@ export const appRouter = router({
         if (id === null) {
           throw new TRPCError({ 
             code: "CONFLICT", 
-            message: "이미 존재하는 URL이거나 저장에 실패했습니다. (중복 등록 확인 필요)" 
+            message: "이미 등록된 공지입니다." 
           });
         }
         return { success: true, id };
