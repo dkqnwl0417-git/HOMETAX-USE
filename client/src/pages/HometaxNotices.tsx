@@ -212,7 +212,8 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground">원본 URL</label>
             
-              href={item.url}
+              <a
+                href={item.url}
               target="_blank"
               rel="noreferrer"
               className="text-xs text-primary hover:underline break-all"
