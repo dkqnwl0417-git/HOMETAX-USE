@@ -108,16 +108,17 @@ export async function getHometaxNotices(filters: any) {
   };
 }
 
-export async function insertHometaxNotice(data: any) {
-  const db = await getDb();
-  try {
-    console.log("[DB] Attempting to insert notice:", data.url);
-    
-    const existing = await db.query.hometaxNotices.findFirst({
+const existing = await db.query.hometaxNotices.findFirst({
   where: and(
     eq(schema.hometaxNotices.title, data.title),
     eq(schema.hometaxNotices.date, data.date)
   )
+});
+
+if (existing) {
+  console.warn("[DB] Duplicate title/date detected:", data.title, data.date);
+  return null;
+}
 });
 
 if (existing) {
