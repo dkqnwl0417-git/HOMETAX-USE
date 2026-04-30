@@ -14,6 +14,7 @@ import {
   incrementViewCount,
   insertManualFile,
   insertHometaxNotice,
+  updateHometaxNotice,
   markAllNotificationsRead,
   deleteManualFile,
 } from "./db";
@@ -63,6 +64,8 @@ export const appRouter = router({
           taxType: z.string().default("기타"),
           docType: z.string().default("파일설명서"),
           date: z.string().min(1, "날짜는 필수입니다."),
+          content: z.string().optional(),
+          attachments: z.string().optional(),
         })
       )
       .mutation(async ({ input }) => {
@@ -81,6 +84,8 @@ export const appRouter = router({
           taxType: input.taxType as any,
           docType: input.docType as any,
           date: input.date,
+          content: input.content,
+          attachments: input.attachments,
           viewCount: 0,
           createdAt: new Date(),
         });
@@ -92,6 +97,25 @@ export const appRouter = router({
           });
         }
         return { success: true, id };
+      }),
+    update: publicProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          title: z.string().min(1),
+          taxType: z.string(),
+          docType: z.string(),
+          date: z.string(),
+          content: z.string().optional(),
+          attachments: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const success = await updateHometaxNotice(input.id, input);
+        if (!success) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "수정 실패" });
+        }
+        return { success: true };
       }),
     delete: publicProcedure
       .input(z.object({ id: z.number() }))
