@@ -47,8 +47,13 @@ export async function initDb() {
       "taxType" text DEFAULT '기타' NOT NULL,
       "docType" text NOT NULL,
       "viewCount" integer DEFAULT 0 NOT NULL,
+      "content" text,
+      "attachments" text,
       "createdAt" integer NOT NULL
     )`);
+
+    await client.execute(`ALTER TABLE "hometaxNotices" ADD COLUMN "content" text`).catch(() => {});
+    await client.execute(`ALTER TABLE "hometaxNotices" ADD COLUMN "attachments" text`).catch(() => {});
 
     await client.execute(`CREATE TABLE IF NOT EXISTS "manualFiles" (
       "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -163,6 +168,26 @@ export async function incrementViewCount(id: number) {
     .where(eq(schema.hometaxNotices.id, id));
 }
 
+export async function updateHometaxNotice(id: number, data: any) {
+  const db = await getDb();
+  try {
+    await db.update(schema.hometaxNotices)
+      .set({
+        title: data.title,
+        taxType: data.taxType,
+        docType: data.docType,
+        date: data.date,
+        content: data.content || null,
+        attachments: data.attachments || null,
+      })
+      .where(eq(schema.hometaxNotices.id, id));
+    return true;
+  } catch (err) {
+    console.error("[DB] Error in updateHometaxNotice:", err);
+    return false;
+  }
+}
+
 export async function deleteHometaxNotice(id: number) {
   const db = await getDb();
   try {
@@ -207,11 +232,13 @@ export async function insertManualFile(data: any) {
   try {
     const values = {
       title: data.title,
-      fileUrl: data.fileUrl,
-      fileType: data.fileType,
-      originalName: data.originalName,
-      mimeType: data.mimeType || "application/octet-stream",
-      uploader: data.uploader,
+      url: data.url,
+      date: data.date,
+      taxType: data.taxType,
+      docType: data.docType,
+      viewCount: 0,
+      content: data.content || null,
+      attachments: data.attachments || null,
       createdAt: new Date().getTime()
     };
     const result = await db.insert(schema.manualFiles).values(values).returning({ id: schema.manualFiles.id });
