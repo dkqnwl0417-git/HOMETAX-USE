@@ -446,23 +446,65 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
             />
           </div>
 
-          {/* 첨부파일 */}
+                    {/* 첨부파일 */}
           <div className="space-y-1.5">
             <label className="text-sm font-semibold text-foreground">첨부파일</label>
-            <textarea
-              value={newAttachments}
-              onChange={(e) => setNewAttachments(e.target.value)}
-              placeholder={"첨부파일명을 줄바꿈으로 구분하여 입력하세요\n예시:\n20260323_부가가치세_파일설명서.doc"}
-              rows={3}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+
+            <div
+              {...getRootProps()}
+              className={cn(
+                "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
+                isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50",
+                isUploadingFile && "opacity-70 pointer-events-none"
+              )}
+            >
+              <input {...getInputProps()} />
+
+              {isUploadingFile ? (
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <p className="text-sm font-medium">파일 업로드 중입니다...</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <Upload className="w-8 h-8 text-primary" />
+                  <p className="text-sm font-medium">파일을 드래그하거나 클릭해서 업로드하세요</p>
+                  <p className="text-xs text-muted-foreground">
+                    내부 메뉴얼 자료실과 동일한 업로드 방식 · 최대 50MB
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {uploadedFiles.length > 0 && (
+              <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                {uploadedFiles.map((file, index) => (
+                  <div key={index} className="flex items-center justify-between gap-2 text-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                      <span className="truncate">{file.name}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+                      }}
+                    >
+                      삭제
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {/* 하단 버튼 */}
         <div className="flex justify-end gap-3 p-5 border-t border-border">
           <Button variant="outline" onClick={onClose}>취소</Button>
-          <Button onClick={handleSubmit} disabled={createMutation.isPending} className="min-w-[100px]">
+          <Button onClick={handleSubmit} disabled={createMutation.isPending || isUploadingFile} className="min-w-[100px]">
             {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "등록하기"}
           </Button>
         </div>
@@ -470,7 +512,6 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
     </div>
   );
 }
-
 // ─── 메인 페이지 ──────────────────────────────────────────────────────────
 export default function HometaxNotices() {
   const [startDate, setStartDate] = useState("");
