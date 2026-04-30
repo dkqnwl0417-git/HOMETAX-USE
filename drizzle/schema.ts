@@ -20,6 +20,8 @@ export const hometaxNotices = sqliteTable("hometaxNotices", {
   taxType: text("taxType").notNull().default("기타"),
   docType: text("docType").notNull(),
   viewCount: integer("viewCount").notNull().default(0),
+  content: text("content"),
+  attachments: text("attachments"),
   createdAt: integer("createdAt").notNull(), // 타임스탬프 정수형
 });
 
