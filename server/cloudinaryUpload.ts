@@ -24,7 +24,7 @@ async function uploadToSupabase(buffer: Buffer, originalname: string): Promise<s
   const ext = originalname.match(/\.[^.]+$/)?.[0] || "";
   const sanitized = originalname
     .replace(/\.[^.]+$/, "")
-    .replace(/[^\w\uAC00-\uD7A3\u3131-\u318E\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF]/g, "_")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_|_$/g, "") || "file";
   const fileName = `${Date.now()}-${Math.round(Math.random() * 1_000_000)}-${sanitized}${ext}`;
