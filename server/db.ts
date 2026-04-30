@@ -108,34 +108,57 @@ export async function getHometaxNotices(filters: any) {
   };
 }
 
-const existing = await db.query.hometaxNotices.findFirst({
-  where: and(
-    eq(schema.hometaxNotices.title, data.title),
-    eq(schema.hometaxNotices.date, data.date)
-  )
-});
+export async function insertHometaxNotice(data: any) {
+  const db = await getDb();
 
-if (existing) {
-  console.warn("[DB] Duplicate title/date detected:", data.title, data.date);
-  return null;
-}
-});
+  try {
+    console.log("[DB] Attempting to insert notice:", data.url);
 
-if (existing) {
-  console.warn("[DB] Duplicate title/date detected:", data.title, data.date);
-  return null;
-}
+    const existing = await db.query.hometaxNotices.findFirst({
+      where: and(
+        eq(schema.hometaxNotices.title, data.title),
+        eq(schema.hometaxNotices.date, data.date)
+      )
+    });
+
+    if (existing) {
+      console.warn("[DB] Duplicate title/date detected:", data.title, data.date);
+      return null;
+    }
+
     const values = {
-  title: data.title,
-  url: data.url,
-  date: data.date,
-  taxType: data.taxType,
-  docType: data.docType,
-  content: data.content || null,
-  attachments: data.attachments || null,
-  viewCount: 0,
-  createdAt: new Date().getTime()
-};
+      title: data.title,
+      url: data.url,
+      date: data.date,
+      taxType: data.taxType,
+      docType: data.docType,
+      content: data.content || null,
+      attachments: data.attachments || null,
+      viewCount: 0,
+      createdAt: new Date().getTime()
+    };
+
+    const result = await db
+      .insert(schema.hometaxNotices)
+      .values(values)
+      .returning({ id: schema.hometaxNotices.id });
+
+    if (result && result.length > 0) {
+      console.log("[DB] Successfully inserted notice, ID:", result[0].id);
+      return result[0].id;
+    }
+
+    return null;
+  } catch (err: any) {
+    console.error("[DB] Error in insertHometaxNotice:", err);
+
+    if (err.message?.includes("no such table")) {
+      await initDb();
+    }
+
+    return null;
+  }
+}
 
     const result = await db.insert(schema.hometaxNotices).values(values).returning({ id: schema.hometaxNotices.id });
     
