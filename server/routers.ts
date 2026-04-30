@@ -76,63 +76,56 @@ export const appRouter = router({
       return result;
     }),
     create: publicProcedure
-      .input(
-        z.object({
-          title: z.string().optional(),
-          url: z.string().min(1, "URL은 필수입니다."),
-          taxType: z.string().default("기타"),
-          docType: z.string().default("파일설명서"),
-          date: z.string().min(1, "날짜는 필수입니다."),
-          content: z.string().optional(),
-          attachments: z.string().optional(),
-        })
-      )
-      .mutation(async ({ input }) => {
-        let finalTitle = input.title?.trim();
-        if (!finalTitle) {
-          const dateObj = new Date(input.date);
-          const year = dateObj.getFullYear();
-          const month = dateObj.getMonth() + 1;
-          const day = dateObj.getDate();
-          finalTitle = `[전자신고]${input.taxType} ${input.docType}(${year}년 ${month}월 ${day}일 공지)`;
-        }
+  .input(
+    z.object({
+      title: z.string().optional(),
+      url: z.string().min(1, "URL은 필수입니다."),
+      taxType: z.string().default("기타"),
+      docType: z.string().default("파일설명서"),
+      date: z.string().min(1, "날짜는 필수입니다."),
+      content: z.string().optional(),
+      attachments: z.string().optional(),
+    })
+  )
+  .mutation(async ({ input }) => {
+    let finalTitle = input.title?.trim();
 
-        const id = await insertHometaxNotice({
-          title: finalTitle,
-          url: input.url,
-          taxType: input.taxType as any,
-          docType: input.docType as any,
-          date: input.date,
-          content: input.content,
-          attachments: input.attachments,
-          viewCount: 0,
-          createdAt: new Date(),
-        });
-        
-        if (!id) {
-  // 중복이면 여기서 끝 (알림 안만듦)
-  throw new TRPCError({
-    code: "CONFLICT",
-    message: "이미 등록된 공지입니다.",
-  });
-}
+    if (!finalTitle) {
+      const dateObj = new Date(input.date);
+      const year = dateObj.getFullYear();
+      const month = dateObj.getMonth() + 1;
+      const day = dateObj.getDate();
 
-// ✅ 성공한 경우만 알림 생성
-await insertNotification({
-  noticeId: id,
-  title: data.title,
-  url: data.url,
-});
+      finalTitle = `[전자신고]${input.taxType} ${input.docType}(${year}년 ${month}월 ${day}일 공지)`;
+    }
 
-        
-        if (id === null) {
-          throw new TRPCError({ 
-            code: "CONFLICT", 
-            message: "이미 등록된 공지입니다." 
-          });
-        }
-        return { success: true, id };
-      }),
+    const id = await insertHometaxNotice({
+      title: finalTitle,
+      url: input.url,
+      taxType: input.taxType as any,
+      docType: input.docType as any,
+      date: input.date,
+      content: input.content,
+      attachments: input.attachments,
+      viewCount: 0,
+      createdAt: new Date(),
+    });
+
+    if (!id) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: "이미 등록된 공지입니다.",
+      });
+    }
+
+    await insertNotification({
+      noticeId: id,
+      title: finalTitle,
+      url: input.url,
+    });
+
+    return { success: true, id };
+  }),
     update: publicProcedure
       .input(
         z.object({
