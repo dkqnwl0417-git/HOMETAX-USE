@@ -129,6 +129,7 @@ export const appRouter = router({
         z.object({
           id: z.number(),
           title: z.string().min(1),
+          url: z.string().min(1),
           taxType: z.string(),
           docType: z.string(),
           date: z.string(),
