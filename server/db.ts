@@ -184,6 +184,7 @@ export async function updateHometaxNotice(id: number, data: any) {
     await db.update(schema.hometaxNotices)
       .set({
         title: data.title,
+        url: data.url,
         taxType: data.taxType,
         docType: data.docType,
         date: data.date,
