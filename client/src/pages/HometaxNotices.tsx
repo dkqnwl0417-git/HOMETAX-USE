@@ -1,7 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useDropzone, type FileRejection } from "react-dropzone";
 import {
   Eye, Search, RefreshCw, ChevronLeft, ChevronRight, Filter, Trash2, Plus, X, Loader2,
-  Link as LinkIcon, Calendar as CalendarIcon, FileText, Pencil, Save
+  Link as LinkIcon, Calendar as CalendarIcon, FileText, Pencil, Save,
+  Upload, CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
