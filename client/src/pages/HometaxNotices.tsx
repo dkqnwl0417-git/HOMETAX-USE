@@ -566,21 +566,20 @@ useEffect(() => {
   const pendingNoticeId = sessionStorage.getItem("pendingNoticeId");
   if (!pendingNoticeId) return;
 
-  sessionStorage.removeItem("pendingNoticeId");
-
-  const openPendingNotice = async () => {
+  const timer = setTimeout(async () => {
     try {
       const notice = await utils.client.hometax.byId.query({
         id: Number(pendingNoticeId),
       });
 
       setSelectedItem(notice);
+      sessionStorage.removeItem("pendingNoticeId");
     } catch {
       toast.error("알림에 연결된 공지를 불러오지 못했습니다.");
     }
-  };
+  }, 300); // 🔥 핵심: 약간 딜레이
 
-  openPendingNotice();
+  return () => clearTimeout(timer);
 }, [utils]);
   
   
