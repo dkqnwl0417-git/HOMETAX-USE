@@ -20,7 +20,7 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 type UploadStatus = "pending" | "uploading" | "saving" | "success" | "error";
 
@@ -264,7 +264,7 @@ export default function ManualFiles() {
     if (tooLargeFiles.length > 0) {
       toast({
         title: "용량 초과",
-        description: `${tooLargeFiles.join(", ")} 파일은 100MB를 초과하여 업로드할 수 없습니다.`,
+        description: `${tooLargeFiles.join(", ")} 파일은 50MB를 초과하여 업로드할 수 없습니다.`,
         variant: "destructive",
       });
     }
@@ -366,7 +366,7 @@ export default function ManualFiles() {
                     </div>
                     <p className="text-sm font-medium">파일을 드래그하거나 클릭하세요</p>
                     <p className="text-xs text-muted-foreground">
-                      여러 파일 동시 선택 가능 · 문서 / 압축파일 / 실행파일 등 업로드 가능 · 최대 100MB
+                      여러 파일 동시 선택 가능 · 문서 / 압축파일 / 실행파일 등 업로드 가능 · 최대 50MB
                     </p>
                   </div>
                 )}
