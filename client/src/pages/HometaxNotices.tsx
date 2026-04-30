@@ -101,6 +101,7 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
   const [editDate, setEditDate] = useState(item.date);
   const [editContent, setEditContent] = useState(item.content || "");
   const [editAttachments, setEditAttachments] = useState(item.attachments || "");
+  const [editUrl, setEditUrl] = useState(item.url || "");
 
   const updateMutation = trpc.hometax.update.useMutation({
     onSuccess: () => {
@@ -116,6 +117,7 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
     updateMutation.mutate({
       id: item.id,
       title: editTitle.trim(),
+      url: editUrl.trim(),
       taxType: editTaxType,
       docType: editDocType,
       date: editDate,
@@ -287,23 +289,27 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
           </div>
 
           {/* 원본 URL */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground">원본 URL</label>
-            
-              <a
-                href={item.url}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-primary hover:underline break-all"
-            >
-              {item.url}
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+<div className="space-y-1.5">
+  <label className="text-xs font-semibold text-muted-foreground">원본 URL</label>
+
+  {isEditing ? (
+    <Input
+      value={editUrl}
+      onChange={(e) => setEditUrl(e.target.value)}
+      placeholder="https://..."
+      className="bg-background"
+    />
+  ) : (
+    <a
+      href={item.url}
+      target="_blank"
+      rel="noreferrer"
+      className="text-xs text-primary hover:underline break-all"
+    >
+      {item.url}
+    </a>
+  )}
+</div>
 
 // ─── 수기 등록 모달 ───────────────────────────────────────────────────────
 function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
