@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Bell, FileText, BookOpen, Home, X, ExternalLink } from "lucide-react";
+import { Bell, FileText, BookOpen, Home, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
@@ -13,15 +13,35 @@ export default function NavBar() {
     undefined,
     { refetchInterval: 60000 }
   );
-  const { data: notifList, isLoading: notifLoading } = trpc.notifications.list.useQuery(
-    { limit: 20 },
+  const [page, setPage] = useState(1);
+
+const { data: notifData, isLoading: notifLoading, refetch } =
+  trpc.notifications.list.useQuery(
+    { page, pageSize: 5 },
     { enabled: notifOpen }
   );
+  
   const markAllRead = trpc.notifications.markAllRead.useMutation({
     onSuccess: () => refetchUnread(),
   });
 
   const unreadCount = unreadData?.count ?? 0;
+  
+  const utils = trpc.useUtils();
+
+const handleClick = async (notif: any) => {
+  if (!notif.noticeId) return;
+
+  const notice = await utils.client.hometax.byId.query({
+    id: notif.noticeId,
+  });
+
+  window.dispatchEvent(
+    new CustomEvent("openNotice", { detail: notice })
+  );
+
+  setNotifOpen(false);
+};
 
   // 외부 클릭 시 닫기
   useEffect(() => {
@@ -117,30 +137,38 @@ export default function NavBar() {
                   <div className="px-4 py-6 text-center text-sm text-muted-foreground">
                     불러오는 중...
                   </div>
-                ) : !notifList || notifList.length === 0 ? (
+                ) : !notifData || notifData.items.length === 0 ? (
                   <div className="px-4 py-6 text-center text-sm text-muted-foreground">
                     새로운 알림이 없습니다.
                   </div>
                 ) : (
-                  notifList.map((notif) => (
-                    <a
-                      key={notif.id}
-                      href={notif.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-start gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0 group"
-                      onClick={() => setNotifOpen(false)}
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-foreground line-clamp-2 group-hover:text-primary transition-colors">
-                          {notif.title}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {new Date(notif.createdAt).toLocaleDateString("ko-KR")}
-                        </p>
-                      </div>
-                      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </a>
+                  notifData.items.map((notif) => (
+                    <div
+  key={notif.id}
+  onClick={() => handleClick(notif)}
+  className="flex items-start gap-3 px-4 py-3 hover:bg-muted/50 transition-colors border-b border-border/50 last:border-0 group cursor-pointer"
+>
+  <div className="flex-1 min-w-0">
+    <p className="text-sm text-foreground line-clamp-2 group-hover:text-primary transition-colors">
+      {notif.title}
+    </p>
+    <p className="text-xs text-muted-foreground mt-0.5">
+      {new Date(notif.createdAt).toLocaleDateString("ko-KR")}
+    </p>
+  </div>
+
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      deleteMutation.mutate({ id: notif.id });
+    }}
+    className="w-5 h-5 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+    title="알림 삭제"
+  >
+    <X className="w-3 h-3" />
+  </button>
+</div>
                   ))
                 )}
               </div>
