@@ -8,6 +8,7 @@ import {
   deleteAllHometaxNotices,
   deleteHometaxNotice,
   getHometaxNotices,
+  getHometaxNoticeById,
   getManualFiles,
   getNotifications,
   getUnreadCount,
@@ -17,6 +18,7 @@ import {
   updateHometaxNotice,
   markAllNotificationsRead,
   deleteManualFile,
+  deleteNotification,
 } from "./db";
 import { runHometaxCrawler } from "./hometaxCrawler";
 
@@ -46,6 +48,22 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return getHometaxNotices(input);
       }),
+
+        byId: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const item = await getHometaxNoticeById(input.id);
+
+        if (!item) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "해당 공지를 찾을 수 없습니다.",
+          });
+        }
+
+        return item;
+      }),
+    
     incrementView: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
@@ -183,11 +201,16 @@ export const appRouter = router({
       }),
   }),
   // ─── 알림 ─────────────────────────────────────────────────────────────────
-  notifications: router({
+    notifications: router({
     list: publicProcedure
-      .input(z.object({ limit: z.number().min(1).max(50).default(20) }))
+      .input(
+        z.object({
+          page: z.number().min(1).default(1),
+          pageSize: z.number().min(1).max(20).default(5),
+        })
+      )
       .query(async ({ input }) => {
-        return getNotifications(input.limit);
+        return getNotifications(input.page, input.pageSize);
       }),
     unreadCount: publicProcedure.query(async () => {
       const count = await getUnreadCount();
@@ -197,7 +220,12 @@ export const appRouter = router({
       await markAllNotificationsRead();
       return { success: true };
     }),
+    delete: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteNotification(input.id);
+        return { success: true };
+      }),
   }),
-});
 
 export type AppRouter = typeof appRouter;
