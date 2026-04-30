@@ -229,7 +229,7 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
             )}
           </div>
 
-          {/* 첨부파일 */}
+                    {/* 첨부파일 */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground">첨부파일</label>
             {isEditing ? (
@@ -243,45 +243,47 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
             ) : (
               <div className="rounded-lg bg-muted/30 border border-border p-4 min-h-[60px]">
                 {item.attachments ? (() => {
-  try {
-    const parsed = JSON.parse(item.attachments);
+                  try {
+                    const parsed = JSON.parse(item.attachments);
 
-    if (Array.isArray(parsed)) {
-      return (
-        <ul className="space-y-1">
-          {parsed.map((file: any, i: number) => (
-            <li key={i} className="text-sm text-foreground flex items-center gap-2">
-              <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-              <a
-                href={file.url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary hover:underline break-all"
-              >
-                {file.name}
-              </a>
-            </li>
-          ))}
-        </ul>
-      );
-    }
-  } catch {
-    // 기존 줄바꿈 텍스트 첨부파일 처리
-  }
+                    if (Array.isArray(parsed)) {
+                      return (
+                        <ul className="space-y-1">
+                          {parsed.map((file: any, i: number) => (
+                            <li key={i} className="text-sm text-foreground flex items-center gap-2">
+                              <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                              <a
+                                href={file.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary hover:underline break-all"
+                              >
+                                {file.name}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      );
+                    }
+                  } catch {
+                    // 기존 텍스트 첨부파일 처리
+                  }
 
-  return (
-    <ul className="space-y-1">
-      {item.attachments.split("\n").filter(Boolean).map((f: string, i: number) => (
-        <li key={i} className="text-sm text-foreground flex items-center gap-2">
-          <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-          {f.trim()}
-        </li>
-      ))}
-    </ul>
-  );
-})() : (
-  <p className="text-sm text-muted-foreground italic">등록된 첨부파일이 없습니다. 수정 버튼을 눌러 입력하세요.</p>
-)}
+                  return (
+                    <ul className="space-y-1">
+                      {item.attachments.split("\n").filter(Boolean).map((f: string, i: number) => (
+                        <li key={i} className="text-sm text-foreground flex items-center gap-2">
+                          <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                          {f.trim()}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })() : (
+                  <p className="text-sm text-muted-foreground italic">등록된 첨부파일이 없습니다. 수정 버튼을 눌러 입력하세요.</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 원본 URL */}
