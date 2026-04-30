@@ -562,18 +562,31 @@ export default function HometaxNotices() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("pendingNoticeData");
-    if (!stored) return;
+  const openNotice = (notice: any) => {
+    setSelectedItem(notice);
+  };
 
+  const stored = sessionStorage.getItem("pendingNoticeData");
+  if (stored) {
     try {
       const notice = JSON.parse(stored);
-      setSelectedItem(notice);
+      openNotice(notice);
       sessionStorage.removeItem("pendingNoticeData");
     } catch (e) {
       console.error("알림 데이터 파싱 실패", e);
       toast.error("알림에 연결된 공지를 불러오지 못했습니다.");
     }
-  }, []);
+  }
+
+  const handler = (e: Event) => {
+    const customEvent = e as CustomEvent;
+    openNotice(customEvent.detail);
+    sessionStorage.removeItem("pendingNoticeData");
+  };
+
+  window.addEventListener("openNoticeData", handler);
+  return () => window.removeEventListener("openNoticeData", handler);
+}, []);
   
   
   
