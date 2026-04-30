@@ -170,6 +170,14 @@ export async function incrementViewCount(id: number) {
     .where(eq(schema.hometaxNotices.id, id));
 }
 
+export async function getHometaxNoticeById(id: number) {
+  const db = await getDb();
+
+  return db.query.hometaxNotices.findFirst({
+    where: eq(schema.hometaxNotices.id, id),
+  });
+}
+
 export async function updateHometaxNotice(id: number, data: any) {
   const db = await getDb();
   try {
