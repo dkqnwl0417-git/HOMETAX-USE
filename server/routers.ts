@@ -109,10 +109,19 @@ export const appRouter = router({
           createdAt: new Date(),
         });
         
-        await insertNotification({
+        if (!id) {
+  // 중복이면 여기서 끝 (알림 안만듦)
+  throw new TRPCError({
+    code: "CONFLICT",
+    message: "이미 등록된 공지입니다.",
+  });
+}
+
+// ✅ 성공한 경우만 알림 생성
+await insertNotification({
   noticeId: id,
-  title: finalTitle,
-  url: input.url,
+  title: data.title,
+  url: data.url,
 });
 
         
