@@ -123,14 +123,16 @@ export async function insertHometaxNotice(data: any) {
     }
 
     const values = {
-      title: data.title,
-      url: data.url,
-      date: data.date,
-      taxType: data.taxType,
-      docType: data.docType,
-      viewCount: 0,
-      createdAt: new Date().getTime()
-    };
+  title: data.title,
+  url: data.url,
+  date: data.date,
+  taxType: data.taxType,
+  docType: data.docType,
+  content: data.content || null,
+  attachments: data.attachments || null,
+  viewCount: 0,
+  createdAt: new Date().getTime()
+};
 
     const result = await db.insert(schema.hometaxNotices).values(values).returning({ id: schema.hometaxNotices.id });
     
