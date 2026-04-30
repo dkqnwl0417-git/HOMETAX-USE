@@ -42,7 +42,7 @@ export async function initDb() {
     await client.execute(`CREATE TABLE IF NOT EXISTS "hometaxNotices" (
       "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
       "title" text NOT NULL,
-      "url" text NOT NULL UNIQUE,
+      "url" text NOT NULL,
       "date" text NOT NULL,
       "taxType" text DEFAULT '기타' NOT NULL,
       "docType" text NOT NULL,
@@ -114,14 +114,16 @@ export async function insertHometaxNotice(data: any) {
     console.log("[DB] Attempting to insert notice:", data.url);
     
     const existing = await db.query.hometaxNotices.findFirst({
-      where: eq(schema.hometaxNotices.url, data.url)
-    });
-    
-    if (existing) {
-      console.warn("[DB] Duplicate URL detected:", data.url);
-      return null;
-    }
+  where: and(
+    eq(schema.hometaxNotices.title, data.title),
+    eq(schema.hometaxNotices.date, data.date)
+  )
+});
 
+if (existing) {
+  console.warn("[DB] Duplicate title/date detected:", data.title, data.date);
+  return null;
+}
     const values = {
   title: data.title,
   url: data.url,
