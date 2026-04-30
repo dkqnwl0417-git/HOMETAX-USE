@@ -47,13 +47,17 @@ const handleClick = async (notif: any) => {
   sessionStorage.setItem("pendingNoticeData", JSON.stringify(notice));
   setNotifOpen(false);
 
-  if (location === "/hometax") {
-    window.dispatchEvent(
-      new CustomEvent("openNoticeData", { detail: notice })
-    );
-  } else {
-    setLocation("/hometax");
-  }
+  // 항상 데이터 저장
+sessionStorage.setItem("pendingNoticeData", JSON.stringify(notice));
+
+// 🔥 항상 이벤트 먼저 쏨
+window.dispatchEvent(
+  new CustomEvent("openNoticeData", { detail: notice })
+);
+
+// 그리고 이동 (이미 있어도 상관없음)
+setLocation("/hometax");
+setNotifOpen(false);
 };
 
   const deleteMutation = trpc.notifications.delete.useMutation({
