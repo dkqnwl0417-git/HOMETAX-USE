@@ -29,6 +29,8 @@ async function uploadToSupabase(buffer: Buffer, originalname: string): Promise<s
     .replace(/^_|_$/g, "") || "file";
   const fileName = `${Date.now()}-${Math.round(Math.random() * 1_000_000)}-${sanitized}${ext}`;
 
+  console.log("[Supabase] Uploading file:", fileName);
+
   const { error } = await supabase.storage
     .from("manual-files")
     .upload(fileName, buffer, {
@@ -36,12 +38,16 @@ async function uploadToSupabase(buffer: Buffer, originalname: string): Promise<s
       upsert: false,
     });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("[Supabase Upload Error]", error.message, error);
+    throw new Error(error.message);
+  }
 
   const { data } = supabase.storage
     .from("manual-files")
     .getPublicUrl(fileName);
 
+  console.log("[Supabase] Upload success:", data.publicUrl);
   return data.publicUrl;
 }
 
