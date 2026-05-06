@@ -90,13 +90,11 @@ async function crawlHometaxLibraryWithPlaywright(): Promise<NoticeItem[]> {
 
     console.log("[Playwright Crawler] Navigating to Hometax...");
     await page.goto(HOMETAX_URL, {
-  waitUntil: "domcontentloaded",
-  timeout: 60000,
-});
+      waitUntil: "domcontentloaded",
+      timeout: 60000,
+    });
+    await page.waitForTimeout(3000);
 
-await page.waitForTimeout(3000);
-
-    // 전체메뉴 클릭
     const menuSelectors = [
       'button[aria-label*="메뉴"]',
       'button:has-text("전체메뉴")',
@@ -117,7 +115,6 @@ await page.waitForTimeout(3000);
       } catch {}
     }
 
-    // 기타 클릭
     const etcSelectors = ['text="기타"', 'li >> text="기타"', 'div >> text="기타"'];
 
     for (const selector of etcSelectors) {
@@ -131,7 +128,6 @@ await page.waitForTimeout(3000);
       } catch {}
     }
 
-    // 자료실 클릭
     const librarySelectors = ['text="자료실"', 'a >> text="자료실"', 'li >> text="자료실"'];
 
     for (const selector of librarySelectors) {
@@ -139,46 +135,48 @@ await page.waitForTimeout(3000);
         const element = page.locator(selector).first();
         if (await element.isVisible({ timeout: 2000 })) {
           await element.click({ timeout: 5000 });
-          await page.waitForTimeout(2500);
+          await page.waitForTimeout(3000);
           break;
         }
       } catch {}
     }
 
-    // 1~3페이지만 수집
     for (let pageNo = 1; pageNo <= 3; pageNo++) {
       console.log(`[Playwright Crawler] Collecting page ${pageNo}...`);
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(2000);
 
       const notices = await page.evaluate((libraryUrl) => {
         const items: NoticeItem[] = [];
-        const rows = document.querySelectorAll("table tbody tr");
+        const text = document.body.innerText || "";
+        const lines = text
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean);
 
-        rows.forEach((row) => {
-          try {
-            const cells = row.querySelectorAll("td");
-            if (cells.length < 3) return;
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
 
-            const titleCell = cells[1];
-            const link = titleCell?.querySelector("a");
+          const isTarget =
+            line.includes("[전자신고]") ||
+            line.includes("파일설명서") ||
+            line.includes("전산매체 제출요령") ||
+            line.includes("전산매체");
 
-            const title =
-              link?.textContent?.trim() ||
-              titleCell?.textContent?.trim() ||
-              "";
+          if (!isTarget) continue;
 
-            const dateCell = cells[cells.length - 2];
-            const date = dateCell?.textContent?.trim() || "";
+          const nearby = lines.slice(i, i + 8).join(" ");
+          const dateMatch =
+            nearby.match(/\d{4}[.-/]\d{1,2}[.-/]\d{1,2}/) ||
+            nearby.match(/\d{8}/);
 
-            if (title && date) {
-              items.push({
-                title,
-                date,
-                url: libraryUrl,
-              });
-            }
-          } catch {}
-        });
+          if (!dateMatch) continue;
+
+          items.push({
+            title: line,
+            date: dateMatch[0],
+            url: libraryUrl,
+          });
+        }
 
         return items;
       }, HOMETAX_LIBRARY_URL);
@@ -190,16 +188,21 @@ await page.waitForTimeout(3000);
         }))
         .filter((item) => item.title && item.date);
 
+      console.log(`[Playwright Crawler] Page ${pageNo} collected ${normalized.length} items.`);
       results.push(...normalized);
 
       if (pageNo < 3) {
         try {
           const nextPageText = String(pageNo + 1);
-          const nextPageButton = page.locator(`text="${nextPageText}"`).last();
+          const nextPageButton = page
+            .locator(
+              `a:has-text("${nextPageText}"), button:has-text("${nextPageText}"), span:has-text("${nextPageText}")`
+            )
+            .last();
 
-          if (await nextPageButton.isVisible({ timeout: 2000 })) {
+          if ((await nextPageButton.count()) > 0) {
             await nextPageButton.click({ timeout: 5000 });
-            await page.waitForTimeout(2000);
+            await page.waitForTimeout(2500);
           } else {
             console.warn(`[Playwright Crawler] Page ${nextPageText} button not found.`);
             break;
@@ -227,16 +230,6 @@ function getSampleNotices(): NoticeItem[] {
     {
       title: "[전자신고]부가가치세 전자신고 파일설명서(2026년 3월 23일 공지)",
       date: "2026-03-23",
-      url: HOMETAX_LIBRARY_URL,
-    },
-    {
-      title: "[부가가치세] 첨부서류 전산매체작성 엑셀 프로그램(v.2.05)",
-      date: "2026-04-20",
-      url: HOMETAX_LIBRARY_URL,
-    },
-    {
-      title: "법인세 전산매체 제출요령 안내",
-      date: "2026-03-10",
       url: HOMETAX_LIBRARY_URL,
     },
   ];
