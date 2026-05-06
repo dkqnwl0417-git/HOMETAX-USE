@@ -72,9 +72,23 @@ export const appRouter = router({
         return { success: true };
       }),
     crawl: publicProcedure.mutation(async () => {
-      const result = await runHometaxCrawler(false);
-      return result;
-    }),
+  const response = await fetch(process.env.CRAWLER_API_URL!, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-crawler-secret": process.env.CRAWLER_SECRET!,
+    },
+  });
+
+  if (!response.ok) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "크롤러 API 호출 실패",
+    });
+  }
+
+  return response.json();
+}),
     create: publicProcedure
   .input(
     z.object({
