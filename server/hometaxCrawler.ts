@@ -89,7 +89,12 @@ async function crawlHometaxLibraryWithPlaywright(): Promise<NoticeItem[]> {
     page.setDefaultNavigationTimeout(30000);
 
     console.log("[Playwright Crawler] Navigating to Hometax...");
-    await page.goto(HOMETAX_URL, { waitUntil: "networkidle" });
+    await page.goto(HOMETAX_URL, {
+  waitUntil: "domcontentloaded",
+  timeout: 60000,
+});
+
+await page.waitForTimeout(3000);
 
     // 전체메뉴 클릭
     const menuSelectors = [
