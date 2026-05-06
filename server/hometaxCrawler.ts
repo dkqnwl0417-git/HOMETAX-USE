@@ -96,7 +96,7 @@ async function crawlHometaxLibraryWithPlaywright(): Promise<NoticeItem[]> {
     });
     await page.waitForTimeout(3000);
 
-    
+    for (let pageNo = 1; pageNo <= 3; pageNo++) {
 
     for (const selector of menuSelectors) {
       try {
