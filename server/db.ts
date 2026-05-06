@@ -22,7 +22,7 @@ export async function initDb() {
 
     const client = (db as any).$client || createClient({
       url: process.env.DATABASE_URL || "file:sqlite.db",
-      authToken: process.env.DATABASE_AUTH_TOKEN
+      authToken: process.env.TURSO_AUTH_TOKEN
     });
 
     await client.execute(`CREATE TABLE IF NOT EXISTS "users" (
