@@ -1,7 +1,8 @@
 import { InsertHometaxNotice } from "../drizzle/schema";
 import { insertHometaxNotice, insertNotification } from "./db";
 
-const HOMETAX_URL = "https://hometax.go.kr";
+const HOMETAX_URL =
+  "https://hometax.go.kr/websquare/websquare.html?w2xPath=/ui/pp/index_pp.xml&tmIdx=16&tm2lIdx=1602000000&tm3lIdx=";
 const HOMETAX_LIBRARY_URL =
   "https://hometax.go.kr/websquare/websquare.html?w2xPath=/ui/pp/index_pp.xml&tmIdx=16&tm2lIdx=1602000000&tm3lIdx=";
 
@@ -95,14 +96,7 @@ async function crawlHometaxLibraryWithPlaywright(): Promise<NoticeItem[]> {
     });
     await page.waitForTimeout(3000);
 
-    const menuSelectors = [
-      'button[aria-label*="메뉴"]',
-      'button:has-text("전체메뉴")',
-      'a:has-text("전체메뉴")',
-      '[role="button"]:has-text("전체메뉴")',
-      'button[class*="menu"]',
-      'a[class*="menu"]',
-    ];
+    
 
     for (const selector of menuSelectors) {
       try {
@@ -115,7 +109,7 @@ async function crawlHometaxLibraryWithPlaywright(): Promise<NoticeItem[]> {
       } catch {}
     }
 
-    const etcSelectors = ['text="기타"', 'li >> text="기타"', 'div >> text="기타"'];
+    
 
     for (const selector of etcSelectors) {
       try {
@@ -128,7 +122,7 @@ async function crawlHometaxLibraryWithPlaywright(): Promise<NoticeItem[]> {
       } catch {}
     }
 
-    const librarySelectors = ['text="자료실"', 'a >> text="자료실"', 'li >> text="자료실"'];
+    
 
     for (const selector of librarySelectors) {
       try {
