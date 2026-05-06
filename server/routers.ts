@@ -72,7 +72,7 @@ export const appRouter = router({
         return { success: true };
       }),
     crawl: publicProcedure.mutation(async () => {
-      const result = await runHometaxCrawler(true);
+      const result = await runHometaxCrawler(false);
       return result;
     }),
     create: publicProcedure
