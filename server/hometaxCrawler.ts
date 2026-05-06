@@ -87,53 +87,15 @@ async function crawlHometaxLibraryWithPlaywright(): Promise<NoticeItem[]> {
     const page = await context.newPage();
 
     page.setDefaultTimeout(30000);
-    page.setDefaultNavigationTimeout(30000);
+    page.setDefaultNavigationTimeout(60000);
 
-    console.log("[Playwright Crawler] Navigating to Hometax...");
-    await page.goto(HOMETAX_URL, {
+    console.log("[Playwright Crawler] Navigating directly to Hometax library...");
+    await page.goto(HOMETAX_LIBRARY_URL, {
       waitUntil: "domcontentloaded",
       timeout: 60000,
     });
-    await page.waitForTimeout(3000);
 
-    for (let pageNo = 1; pageNo <= 3; pageNo++) {
-
-    for (const selector of menuSelectors) {
-      try {
-        const element = page.locator(selector).first();
-        if (await element.isVisible({ timeout: 2000 })) {
-          await element.click({ timeout: 5000 });
-          await page.waitForTimeout(1500);
-          break;
-        }
-      } catch {}
-    }
-
-    
-
-    for (const selector of etcSelectors) {
-      try {
-        const element = page.locator(selector).first();
-        if (await element.isVisible({ timeout: 2000 })) {
-          await element.click({ timeout: 5000 });
-          await page.waitForTimeout(1000);
-          break;
-        }
-      } catch {}
-    }
-
-    
-
-    for (const selector of librarySelectors) {
-      try {
-        const element = page.locator(selector).first();
-        if (await element.isVisible({ timeout: 2000 })) {
-          await element.click({ timeout: 5000 });
-          await page.waitForTimeout(3000);
-          break;
-        }
-      } catch {}
-    }
+    await page.waitForTimeout(5000);
 
     for (let pageNo = 1; pageNo <= 3; pageNo++) {
       console.log(`[Playwright Crawler] Collecting page ${pageNo}...`);
@@ -158,7 +120,7 @@ async function crawlHometaxLibraryWithPlaywright(): Promise<NoticeItem[]> {
 
           if (!isTarget) continue;
 
-          const nearby = lines.slice(i, i + 8).join(" ");
+          const nearby = lines.slice(i, i + 10).join(" ");
           const dateMatch =
             nearby.match(/\d{4}[.-/]\d{1,2}[.-/]\d{1,2}/) ||
             nearby.match(/\d{8}/);
@@ -196,7 +158,7 @@ async function crawlHometaxLibraryWithPlaywright(): Promise<NoticeItem[]> {
 
           if ((await nextPageButton.count()) > 0) {
             await nextPageButton.click({ timeout: 5000 });
-            await page.waitForTimeout(2500);
+            await page.waitForTimeout(3000);
           } else {
             console.warn(`[Playwright Crawler] Page ${nextPageText} button not found.`);
             break;
