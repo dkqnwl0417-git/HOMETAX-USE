@@ -82,7 +82,7 @@ async function crawlHometaxLibraryWithPlaywright(): Promise<NoticeItem[]> {
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
 
-    const context = await browser.createBrowserContext();
+    const context = await browser.newContext();
     const page = await context.newPage();
 
     page.setDefaultTimeout(30000);
