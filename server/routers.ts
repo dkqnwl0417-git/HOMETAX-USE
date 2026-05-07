@@ -22,6 +22,7 @@ import {
   markAllNotificationsRead,
   deleteManualFile,
   deleteNotification,
+  deleteAllNotifications,
 } from "./db";
 import { runHometaxCrawler } from "./hometaxCrawler";
 
@@ -272,6 +273,11 @@ return {
         await deleteNotification(input.id);
         return { success: true };
       }),
+
+    deleteAll: publicProcedure.mutation(async () => {
+       const deleted = await deleteAllNotifications();
+      return { success: true, deleted };
+     }),
   }),
 });
 
