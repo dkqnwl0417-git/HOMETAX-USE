@@ -156,7 +156,23 @@ setNotifOpen(false);
 {notifOpen && (
   <div className="absolute right-0 top-12 w-80 sm:w-96 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50">
     <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-      <h3 className="font-semibold text-sm text-foreground">최근 등록 공지</h3>
+      <div className="flex items-center gap-2">
+        <h3 className="font-semibold text-sm text-foreground">최근 등록 공지</h3>
+        {notifData && notifData.items.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              if (confirm("모든 알림을 삭제하시겠습니까?")) {
+                deleteAllMutation.mutate();
+              }
+            }}
+            className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1"
+          >
+            <Trash2 className="w-3 h-3" />
+            일괄 삭제
+          </button>
+        )}
+      </div>
       <button
         onClick={() => setNotifOpen(false)}
         className="w-6 h-6 flex items-center justify-center rounded hover:bg-muted transition-colors"
