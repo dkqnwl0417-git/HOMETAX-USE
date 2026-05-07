@@ -820,8 +820,6 @@ export default function HometaxNotices() {
       },
       onError: (err) => toast.error("수집 실패: " + err.message),
     });
-        onError: (err) => toast.error("수집 실패: " + err.message),
-  });
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
 
