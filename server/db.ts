@@ -7,72 +7,103 @@ let _db: any = null;
 
 async function getDb() {
   if (_db) return _db;
+
   const url = process.env.DATABASE_URL || "file:sqlite.db";
   const authToken = process.env.TURSO_AUTH_TOKEN;
+
   console.log("[DB] Connecting to:", url);
-  const client = createClient({ url, authToken });
+
+  const client = createClient({
+    url,
+    authToken
+  });
+
   _db = drizzle(client, { schema });
+
   return _db;
 }
 
 export async function initDb() {
   try {
     const db = await getDb();
+
     console.log("[DB] Initializing tables if not exist...");
 
-    const client = (db as any).$client || createClient({
-      url: process.env.DATABASE_URL || "file:sqlite.db",
-      authToken: process.env.TURSO_AUTH_TOKEN
-    });
+    const client =
+      (db as any).$client ||
+      createClient({
+        url: process.env.DATABASE_URL || "file:sqlite.db",
+        authToken: process.env.TURSO_AUTH_TOKEN
+      });
 
-    await client.execute(`CREATE TABLE IF NOT EXISTS "users" (
-      "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-      "openId" text NOT NULL UNIQUE,
-      "name" text,
-      "email" text,
-      "loginMethod" text,
-      "role" text DEFAULT 'user' NOT NULL,
-      "createdAt" integer NOT NULL,
-      "updatedAt" integer NOT NULL,
-      "lastSignedIn" integer NOT NULL
-    )`);
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS "users" (
+        "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+        "openId" text NOT NULL UNIQUE,
+        "name" text,
+        "email" text,
+        "loginMethod" text,
+        "role" text DEFAULT 'user' NOT NULL,
+        "createdAt" integer NOT NULL,
+        "updatedAt" integer NOT NULL,
+        "lastSignedIn" integer NOT NULL
+      )
+    `);
 
-    await client.execute(`CREATE TABLE IF NOT EXISTS "hometaxNotices" (
-      "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-      "title" text NOT NULL,
-      "url" text NOT NULL,
-      "date" text NOT NULL,
-      "taxType" text DEFAULT '기타' NOT NULL,
-      "docType" text NOT NULL,
-      "viewCount" integer DEFAULT 0 NOT NULL,
-      "content" text,
-      "attachments" text,
-      "createdAt" integer NOT NULL
-    )`);
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS "hometaxNotices" (
+        "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+        "title" text NOT NULL,
+        "url" text NOT NULL,
+        "date" text NOT NULL,
+        "taxType" text DEFAULT '기타' NOT NULL,
+        "docType" text NOT NULL,
+        "viewCount" integer DEFAULT 0 NOT NULL,
+        "content" text,
+        "attachments" text,
+        "sourceType" text DEFAULT 'manual' NOT NULL,
+        "createdAt" integer NOT NULL
+      )
+    `);
 
-    await client.execute(`ALTER TABLE "hometaxNotices" ADD COLUMN "content" text`).catch(() => {});
-    await client.execute(`ALTER TABLE "hometaxNotices" ADD COLUMN "attachments" text`).catch(() => {});
+    await client
+      .execute(`ALTER TABLE "hometaxNotices" ADD COLUMN "content" text`)
+      .catch(() => {});
 
-    await client.execute(`CREATE TABLE IF NOT EXISTS "manualFiles" (
-      "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-      "title" text NOT NULL,
-      "fileUrl" text NOT NULL,
-      "fileType" text NOT NULL,
-      "originalName" text NOT NULL,
-      "mimeType" text DEFAULT 'application/octet-stream' NOT NULL,
-      "uploader" text NOT NULL,
-      "createdAt" integer NOT NULL
-    )`);
+    await client
+      .execute(`ALTER TABLE "hometaxNotices" ADD COLUMN "attachments" text`)
+      .catch(() => {});
 
-    await client.execute(`CREATE TABLE IF NOT EXISTS "notifications" (
-      "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-      "noticeId" integer,
-      "title" text,
-      "url" text,
-      "message" text,
-      "isRead" integer DEFAULT 0 NOT NULL,
-      "createdAt" integer NOT NULL
-    )`);
+    await client
+      .execute(
+        `ALTER TABLE "hometaxNotices" ADD COLUMN "sourceType" text DEFAULT 'manual' NOT NULL`
+      )
+      .catch(() => {});
+
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS "manualFiles" (
+        "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+        "title" text NOT NULL,
+        "fileUrl" text NOT NULL,
+        "fileType" text NOT NULL,
+        "originalName" text NOT NULL,
+        "mimeType" text DEFAULT 'application/octet-stream' NOT NULL,
+        "uploader" text NOT NULL,
+        "createdAt" integer NOT NULL
+      )
+    `);
+
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS "notifications" (
+        "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+        "noticeId" integer,
+        "title" text,
+        "url" text,
+        "message" text,
+        "isRead" integer DEFAULT 0 NOT NULL,
+        "createdAt" integer NOT NULL
+      )
+    `);
 
     console.log("[DB] Table initialization complete.");
   } catch (err) {
@@ -82,23 +113,65 @@ export async function initDb() {
 
 export async function getHometaxNotices(filters: any) {
   const db = await getDb();
+
   const conditions = [];
 
-  if (filters.startDate) conditions.push(gte(schema.hometaxNotices.date, filters.startDate));
-  if (filters.endDate) conditions.push(lte(schema.hometaxNotices.date, filters.endDate));
-  if (filters.taxType) conditions.push(eq(schema.hometaxNotices.taxType, filters.taxType));
-  if (filters.docType) conditions.push(eq(schema.hometaxNotices.docType, filters.docType));
+  if (filters.startDate) {
+    conditions.push(
+      gte(schema.hometaxNotices.date, filters.startDate)
+    );
+  }
+
+  if (filters.endDate) {
+    conditions.push(
+      lte(schema.hometaxNotices.date, filters.endDate)
+    );
+  }
+
+  if (filters.taxType) {
+    conditions.push(
+      eq(schema.hometaxNotices.taxType, filters.taxType)
+    );
+  }
+
+  if (filters.docType) {
+    conditions.push(
+      eq(schema.hometaxNotices.docType, filters.docType)
+    );
+  }
+
+  if (filters.keyword) {
+    conditions.push(
+      like(schema.hometaxNotices.title, `%${filters.keyword}%`)
+    );
+  }
 
   const items = await db.query.hometaxNotices.findMany({
-    where: conditions.length > 0 ? and(...conditions) : undefined,
-    orderBy: [desc(schema.hometaxNotices.date), desc(schema.hometaxNotices.id)],
+    where: conditions.length > 0
+      ? and(...conditions)
+      : undefined,
+
+    orderBy: [
+      desc(schema.hometaxNotices.date),
+      desc(schema.hometaxNotices.id)
+    ],
+
     limit: filters.pageSize,
-    offset: (filters.page - 1) * filters.pageSize,
+
+    offset:
+      (filters.page - 1) * filters.pageSize,
   });
 
-  const countResult = await db.select({ count: sql`count(*)` })
+  const countResult = await db
+    .select({
+      count: sql`count(*)`
+    })
     .from(schema.hometaxNotices)
-    .where(conditions.length > 0 ? and(...conditions) : undefined);
+    .where(
+      conditions.length > 0
+        ? and(...conditions)
+        : undefined
+    );
 
   return {
     items,
@@ -110,17 +183,26 @@ export async function insertHometaxNotice(data: any) {
   const db = await getDb();
 
   try {
-    console.log("[DB] Attempting to insert notice:", data.url);
+    console.log(
+      "[DB] Attempting to insert notice:",
+      data.url
+    );
 
-    const existing = await db.query.hometaxNotices.findFirst({
-      where: and(
-        eq(schema.hometaxNotices.title, data.title),
-        eq(schema.hometaxNotices.date, data.date)
-      )
-    });
+    const existing =
+      await db.query.hometaxNotices.findFirst({
+        where: and(
+          eq(schema.hometaxNotices.title, data.title),
+          eq(schema.hometaxNotices.date, data.date)
+        )
+      });
 
     if (existing) {
-      console.warn("[DB] Duplicate title/date detected:", data.title, data.date);
+      console.warn(
+        "[DB] Duplicate title/date detected:",
+        data.title,
+        data.date
+      );
+
       return null;
     }
 
@@ -132,6 +214,7 @@ export async function insertHometaxNotice(data: any) {
       docType: data.docType,
       content: data.content || null,
       attachments: data.attachments || null,
+      sourceType: data.sourceType || "manual",
       viewCount: 0,
       createdAt: new Date().getTime()
     };
@@ -139,16 +222,25 @@ export async function insertHometaxNotice(data: any) {
     const result = await db
       .insert(schema.hometaxNotices)
       .values(values)
-      .returning({ id: schema.hometaxNotices.id });
+      .returning({
+        id: schema.hometaxNotices.id
+      });
 
     if (result && result.length > 0) {
-      console.log("[DB] Successfully inserted notice, ID:", result[0].id);
+      console.log(
+        "[DB] Successfully inserted notice, ID:",
+        result[0].id
+      );
+
       return result[0].id;
     }
 
     return null;
   } catch (err: any) {
-    console.error("[DB] Error in insertHometaxNotice:", err);
+    console.error(
+      "[DB] Error in insertHometaxNotice:",
+      err
+    );
 
     if (err.message?.includes("no such table")) {
       await initDb();
@@ -161,9 +253,12 @@ export async function insertHometaxNotice(data: any) {
 export async function urlExists(url: string) {
   try {
     const db = await getDb();
-    const existing = await db.query.hometaxNotices.findFirst({
-      where: eq(schema.hometaxNotices.url, url)
-    });
+
+    const existing =
+      await db.query.hometaxNotices.findFirst({
+        where: eq(schema.hometaxNotices.url, url)
+      });
+
     return !!existing;
   } catch {
     return false;
@@ -172,9 +267,15 @@ export async function urlExists(url: string) {
 
 export async function incrementViewCount(id: number) {
   const db = await getDb();
-  await db.update(schema.hometaxNotices)
-    .set({ viewCount: sql`viewCount + 1` })
-    .where(eq(schema.hometaxNotices.id, id));
+
+  await db
+    .update(schema.hometaxNotices)
+    .set({
+      viewCount: sql`viewCount + 1`
+    })
+    .where(
+      eq(schema.hometaxNotices.id, id)
+    );
 }
 
 export async function getHometaxNoticeById(id: number) {
@@ -189,7 +290,8 @@ export async function updateHometaxNotice(id: number, data: any) {
   const db = await getDb();
 
   try {
-    await db.update(schema.hometaxNotices)
+    await db
+      .update(schema.hometaxNotices)
       .set({
         title: data.title,
         url: data.url,
@@ -198,12 +300,19 @@ export async function updateHometaxNotice(id: number, data: any) {
         date: data.date,
         content: data.content || null,
         attachments: data.attachments || null,
+        sourceType: data.sourceType || "manual",
       })
-      .where(eq(schema.hometaxNotices.id, id));
+      .where(
+        eq(schema.hometaxNotices.id, id)
+      );
 
     return true;
   } catch (err) {
-    console.error("[DB] Error in updateHometaxNotice:", err);
+    console.error(
+      "[DB] Error in updateHometaxNotice:",
+      err
+    );
+
     return false;
   }
 }
@@ -212,7 +321,12 @@ export async function deleteHometaxNotice(id: number) {
   const db = await getDb();
 
   try {
-    await db.delete(schema.hometaxNotices).where(eq(schema.hometaxNotices.id, id));
+    await db
+      .delete(schema.hometaxNotices)
+      .where(
+        eq(schema.hometaxNotices.id, id)
+      );
+
     return true;
   } catch {
     return false;
@@ -221,26 +335,51 @@ export async function deleteHometaxNotice(id: number) {
 
 export async function deleteAllHometaxNotices() {
   const db = await getDb();
-  const result = await db.delete(schema.hometaxNotices);
+
+  const result =
+    await db.delete(schema.hometaxNotices);
+
   return Number(result.rowsAffected || 0);
 }
 
 export async function getManualFiles(filters: any) {
   const db = await getDb();
+
   const conditions = [];
 
-  if (filters.keyword) conditions.push(like(schema.manualFiles.title, `%${filters.keyword}%`));
+  if (filters.keyword) {
+    conditions.push(
+      like(schema.manualFiles.title, `%${filters.keyword}%`)
+    );
+  }
 
-  const items = await db.query.manualFiles.findMany({
-    where: conditions.length > 0 ? and(...conditions) : undefined,
-    orderBy: [desc(schema.manualFiles.createdAt)],
-    limit: filters.pageSize,
-    offset: (filters.page - 1) * filters.pageSize,
-  });
+  const items =
+    await db.query.manualFiles.findMany({
+      where:
+        conditions.length > 0
+          ? and(...conditions)
+          : undefined,
 
-  const countResult = await db.select({ count: sql`count(*)` })
+      orderBy: [
+        desc(schema.manualFiles.createdAt)
+      ],
+
+      limit: filters.pageSize,
+
+      offset:
+        (filters.page - 1) * filters.pageSize,
+    });
+
+  const countResult = await db
+    .select({
+      count: sql`count(*)`
+    })
     .from(schema.manualFiles)
-    .where(conditions.length > 0 ? and(...conditions) : undefined);
+    .where(
+      conditions.length > 0
+        ? and(...conditions)
+        : undefined
+    );
 
   return {
     items,
@@ -257,21 +396,37 @@ export async function insertManualFile(data: any) {
       fileUrl: data.fileUrl,
       fileType: data.fileType,
       originalName: data.originalName,
-      mimeType: data.mimeType || "application/octet-stream",
+      mimeType:
+        data.mimeType ||
+        "application/octet-stream",
+
       uploader: data.uploader,
+
       createdAt: new Date().getTime()
     };
 
     const result = await db
       .insert(schema.manualFiles)
       .values(values)
-      .returning({ id: schema.manualFiles.id });
+      .returning({
+        id: schema.manualFiles.id
+      });
 
-    if (result && result.length > 0) return result[0].id;
+    if (result && result.length > 0) {
+      return result[0].id;
+    }
+
     return null;
   } catch (err: any) {
-    console.error("[DB] Error in insertManualFile:", err);
-    if (err.message?.includes("no such table")) await initDb();
+    console.error(
+      "[DB] Error in insertManualFile:",
+      err
+    );
+
+    if (err.message?.includes("no such table")) {
+      await initDb();
+    }
+
     return null;
   }
 }
@@ -280,7 +435,12 @@ export async function deleteManualFile(id: number) {
   const db = await getDb();
 
   try {
-    await db.delete(schema.manualFiles).where(eq(schema.manualFiles.id, id));
+    await db
+      .delete(schema.manualFiles)
+      .where(
+        eq(schema.manualFiles.id, id)
+      );
+
     return true;
   } catch {
     return false;
@@ -289,24 +449,45 @@ export async function deleteManualFile(id: number) {
 
 export async function deleteExpiredNotifications() {
   const db = await getDb();
-  const sevenDaysAgo = new Date().getTime() - 7 * 24 * 60 * 60 * 1000;
 
-  await db.delete(schema.notifications)
-    .where(lt(schema.notifications.createdAt, sevenDaysAgo));
+  const sevenDaysAgo =
+    new Date().getTime() -
+    7 * 24 * 60 * 60 * 1000;
+
+  await db
+    .delete(schema.notifications)
+    .where(
+      lt(
+        schema.notifications.createdAt,
+        sevenDaysAgo
+      )
+    );
 }
 
-export async function getNotifications(page = 1, pageSize = 5) {
+export async function getNotifications(
+  page = 1,
+  pageSize = 5
+) {
   const db = await getDb();
 
   await deleteExpiredNotifications();
 
-  const items = await db.query.notifications.findMany({
-    orderBy: [desc(schema.notifications.createdAt)],
-    limit: pageSize,
-    offset: (page - 1) * pageSize,
-  });
+  const items =
+    await db.query.notifications.findMany({
+      orderBy: [
+        desc(schema.notifications.createdAt)
+      ],
 
-  const countResult = await db.select({ count: sql`count(*)` })
+      limit: pageSize,
+
+      offset:
+        (page - 1) * pageSize,
+    });
+
+  const countResult = await db
+    .select({
+      count: sql`count(*)`
+    })
     .from(schema.notifications);
 
   return {
@@ -320,8 +501,11 @@ export async function getNotifications(page = 1, pageSize = 5) {
 export async function deleteNotification(id: number) {
   const db = await getDb();
 
-  await db.delete(schema.notifications)
-    .where(eq(schema.notifications.id, id));
+  await db
+    .delete(schema.notifications)
+    .where(
+      eq(schema.notifications.id, id)
+    );
 
   return true;
 }
@@ -329,59 +513,87 @@ export async function deleteNotification(id: number) {
 export async function getUnreadCount() {
   const db = await getDb();
 
-  const result = await db.select({ count: sql`count(*)` })
+  const result = await db
+    .select({
+      count: sql`count(*)`
+    })
     .from(schema.notifications)
-    .where(eq(schema.notifications.isRead, 0));
+    .where(
+      eq(schema.notifications.isRead, 0)
+    );
 
   return Number(result[0]?.count || 0);
 }
 
 export async function markAllNotificationsRead() {
   const db = await getDb();
-  await db.update(schema.notifications).set({ isRead: 1 });
+
+  await db
+    .update(schema.notifications)
+    .set({
+      isRead: 1
+    });
 }
 
 export async function insertNotification(data: any) {
   try {
     const db = await getDb();
 
-    await db.insert(schema.notifications).values({
-      noticeId: data.noticeId,
-      title: data.title,
-      url: data.url,
-      isRead: data.isRead || 0,
-      createdAt: new Date().getTime()
-    });
+    await db
+      .insert(schema.notifications)
+      .values({
+        noticeId: data.noticeId,
+        title: data.title,
+        url: data.url,
+        isRead: data.isRead || 0,
+        createdAt: new Date().getTime()
+      });
   } catch (err) {
-    console.error("[DB] Error in insertNotification:", err);
+    console.error(
+      "[DB] Error in insertNotification:",
+      err
+    );
   }
 }
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
-  return db.query.users.findFirst({ where: eq(schema.users.openId, openId) });
+
+  return db.query.users.findFirst({
+    where: eq(schema.users.openId, openId)
+  });
 }
 
 export async function upsertUser(data: any) {
   const db = await getDb();
-  const existing = await getUserByOpenId(data.openId);
+
+  const existing =
+    await getUserByOpenId(data.openId);
 
   if (existing) {
-    await db.update(schema.users).set({
-      ...data,
-      updatedAt: new Date().getTime(),
-      lastSignedIn: new Date().getTime()
-    }).where(eq(schema.users.openId, data.openId));
+    await db
+      .update(schema.users)
+      .set({
+        ...data,
+        updatedAt: new Date().getTime(),
+        lastSignedIn: new Date().getTime()
+      })
+      .where(
+        eq(schema.users.openId, data.openId)
+      );
 
     return existing;
   }
 
-  const result = await db.insert(schema.users).values({
-    ...data,
-    createdAt: new Date().getTime(),
-    updatedAt: new Date().getTime(),
-    lastSignedIn: new Date().getTime()
-  }).returning();
+  const result = await db
+    .insert(schema.users)
+    .values({
+      ...data,
+      createdAt: new Date().getTime(),
+      updatedAt: new Date().getTime(),
+      lastSignedIn: new Date().getTime()
+    })
+    .returning();
 
   return result[0];
 }
