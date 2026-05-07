@@ -5,9 +5,17 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
 export default function Home() {
+  const { data: lastCrawlData, refetch: refetchLastCrawl } =
+    trpc.hometax.lastCrawl.useQuery();
+
+  const lastCrawledAt = lastCrawlData?.crawledAt
+    ? new Date(lastCrawlData.crawledAt).toLocaleString("ko-KR")
+    : "아직 수집 이력이 없습니다.";
+  
   const crawlMutation = trpc.hometax.crawl.useMutation({
     onSuccess: (data) => {
       toast.success(`크롤링 완료: 신규 ${data.inserted}건 등록`);
+      refetchLastCrawl();
     },
     onError: (err) => {
       toast.error("크롤링 실패: " + err.message);
@@ -115,8 +123,14 @@ export default function Home() {
             {crawlMutation.isPending ? "수집 중..." : "지금 수집하기"}
           </Button>
           <p className="text-xs text-muted-foreground">
-            홈택스 공지사항을 즉시 수집합니다. 자동 수집은 매일 오전 9시에 실행됩니다.
-          </p>
+            <div className="flex flex-col gap-1">
+            <p className="text-xs text-muted-foreground">
+              홈택스 공지사항을 즉시 수집합니다. 자동 수집은 매일 오전 9시에 실행됩니다.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              마지막 수집일시: {lastCrawledAt}
+            </p>
+          </div>
         </div>
       </div>
     </div>
