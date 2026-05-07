@@ -368,10 +368,12 @@ export async function deleteHometaxNotice(id: number) {
 
   try {
     await db
+      .delete(schema.notifications)
+      .where(eq(schema.notifications.noticeId, id));
+
+    await db
       .delete(schema.hometaxNotices)
-      .where(
-        eq(schema.hometaxNotices.id, id)
-      );
+      .where(eq(schema.hometaxNotices.id, id));
 
     return true;
   } catch {
@@ -382,8 +384,9 @@ export async function deleteHometaxNotice(id: number) {
 export async function deleteAllHometaxNotices() {
   const db = await getDb();
 
-  const result =
-    await db.delete(schema.hometaxNotices);
+  await db.delete(schema.notifications);
+
+  const result = await db.delete(schema.hometaxNotices);
 
   return Number(result.rowsAffected || 0);
 }
