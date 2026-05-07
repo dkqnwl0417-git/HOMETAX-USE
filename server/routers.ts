@@ -100,6 +100,7 @@ export const appRouter = router({
       date: z.string().min(1, "날짜는 필수입니다."),
       content: z.string().optional(),
       attachments: z.string().optional(),
+      sourceType: z.string().optional(),
     })
   )
   .mutation(async ({ input }) => {
@@ -122,6 +123,7 @@ export const appRouter = router({
       date: input.date,
       content: input.content,
       attachments: input.attachments,
+      sourceType: input.sourceType || "manual",
       viewCount: 0,
       createdAt: new Date(),
     });
