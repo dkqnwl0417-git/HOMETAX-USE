@@ -12,7 +12,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const TAX_TYPES = ["전체", "부가가치세", "종합소득세", "법인세", "원천세", "기타"];
+const TAX_TYPES = ["전체", "부가가치세", "종합소득세", "법인세", "원천세", "양도소득세", "상속/증여세", "개별소비세", "기타"];
 const DOC_TYPES = ["전체", "파일설명서", "전산매체 제출요령", "기타"];
 const PAGE_SIZE = 20;
 
