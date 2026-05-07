@@ -852,36 +852,48 @@ export default function HometaxNotices() {
       )}
 
       {/* 헤더 */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-1">Hometax</p>
-          <h1 className="text-3xl font-extrabold text-foreground tracking-tight">전자신고 설명서</h1>
-          <p className="text-sm font-light text-muted-foreground mt-1">홈택스 공지사항 자동 수집 및 수기 등록 관리</p>
-        </div>
-        <div className="flex flex-wrap gap-2 self-start sm:self-auto">
-          <Button size="sm" variant="default" className="gap-2 shadow-sm" onClick={() => setShowCreateModal(true)}>
-            <Plus className="w-4 h-4" /> 수기 등록
-          </Button>
-          <Button
-            size="sm" variant="outline" className="gap-2 bg-card shadow-sm"
-            onClick={() => crawlMutation.mutate()} disabled={crawlMutation.isPending}
-          >
-            <RefreshCw className={cn("w-4 h-4", crawlMutation.isPending && "animate-spin")} />
-            {crawlMutation.isPending ? "수집 중..." : "지금 수집"}
-          </Button>
-          <Button
-            size="sm" variant="ghost" className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => { if (confirm("모든 데이터를 삭제하시겠습니까?")) deleteAllMutation.mutate(); }}
-            disabled={deleteAllMutation.isPending}
-          >
-            <Trash2 className="w-4 h-4" /> 전체 삭제
-          </Button>
-          
-          <p className="w-full text-xs text-muted-foreground text-right mt-1">
-              마지막 수집일시: {lastCrawledAt}
-           </p>
-        </div>
-      </div>
+<div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+  <div>
+    <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-1">Hometax</p>
+    <h1 className="text-3xl font-extrabold text-foreground tracking-tight">전자신고 설명서</h1>
+    <p className="text-sm font-light text-muted-foreground mt-1">홈택스 공지사항 자동 수집 및 수기 등록 관리</p>
+  </div>
+
+  <div className="flex flex-col items-end gap-2 self-start sm:self-auto">
+    <div className="flex flex-wrap gap-2 justify-end">
+      <Button size="sm" variant="default" className="gap-2 shadow-sm" onClick={() => setShowCreateModal(true)}>
+        <Plus className="w-4 h-4" /> 수기 등록
+      </Button>
+
+      <Button
+        size="sm"
+        variant="outline"
+        className="gap-2 bg-card shadow-sm"
+        onClick={() => crawlMutation.mutate()}
+        disabled={crawlMutation.isPending}
+      >
+        <RefreshCw className={cn("w-4 h-4", crawlMutation.isPending && "animate-spin")} />
+        {crawlMutation.isPending ? "수집 중..." : "지금 수집"}
+      </Button>
+
+      <Button
+        size="sm"
+        variant="ghost"
+        className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+        onClick={() => {
+          if (confirm("모든 데이터를 삭제하시겠습니까?")) deleteAllMutation.mutate();
+        }}
+        disabled={deleteAllMutation.isPending}
+      >
+        <Trash2 className="w-4 h-4" /> 전체 삭제
+      </Button>
+    </div>
+
+    <p className="text-xs text-muted-foreground">
+      마지막 수집일시: {lastCrawledAt}
+    </p>
+  </div>
+</div>
 
       {/* 필터 */}
       <div className="bg-card border border-border rounded-xl p-5 mb-6 shadow-sm">
