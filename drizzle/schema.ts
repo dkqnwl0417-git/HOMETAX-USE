@@ -47,6 +47,12 @@ export const notifications = sqliteTable("notifications", {
   createdAt: integer("createdAt").notNull(), // 타임스탬프 정수형
 });
 
+export const appSettings = sqliteTable("appSettings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: integer("updatedAt").notNull(),
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type HometaxNotice = typeof hometaxNotices.$inferSelect;
