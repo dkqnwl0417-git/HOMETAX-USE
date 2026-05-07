@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Bell, FileText, BookOpen, Home, X } from "lucide-react";
+import { Bell, FileText, BookOpen, Home, X, Trash2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
@@ -64,6 +64,14 @@ setNotifOpen(false);
   onSuccess: () => {
     refetch();
     refetchUnread();
+  },
+});
+
+  const deleteAllMutation = trpc.notifications.deleteAll.useMutation({
+  onSuccess: () => {
+    refetch();
+    refetchUnread();
+    setPage(1);
   },
 });
 
