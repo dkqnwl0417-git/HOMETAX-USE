@@ -792,6 +792,14 @@ export default function HometaxNotices() {
   );
 
   const { data, isLoading, refetch } = trpc.hometax.list.useQuery(queryInput);
+
+  const { data: lastCrawlData, refetch: refetchLastCrawl } =
+  trpc.hometax.lastCrawl.useQuery();
+
+  const lastCrawledAt = lastCrawlData?.crawledAt
+    ? new Date(lastCrawlData.crawledAt).toLocaleString("ko-KR")
+    :  "아직 수집 이력이 없습니다.";
+  
   const incrementView = trpc.hometax.incrementView.useMutation();
 
   const deleteMutation = trpc.hometax.delete.useMutation({
@@ -804,9 +812,15 @@ export default function HometaxNotices() {
     onError: (err) => toast.error("삭제 실패: " + err.message),
   });
 
-  const crawlMutation = trpc.hometax.crawl.useMutation({
-    onSuccess: (result) => { toast.success(`수집 완료: 신규 ${result.inserted}건 등록`); refetch(); },
-    onError: (err) => toast.error("수집 실패: " + err.message),
+    const crawlMutation = trpc.hometax.crawl.useMutation({
+      onSuccess: (result) => {
+        toast.success(`수집 완료: 신규 ${result.inserted}건 등록`);
+        refetch();
+        refetchLastCrawl();
+      },
+      onError: (err) => toast.error("수집 실패: " + err.message),
+    });
+        onError: (err) => toast.error("수집 실패: " + err.message),
   });
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
@@ -864,6 +878,10 @@ export default function HometaxNotices() {
           >
             <Trash2 className="w-4 h-4" /> 전체 삭제
           </Button>
+          
+          <p className="w-full text-xs text-muted-foreground text-right mt-1">
+              마지막 수집일시: {lastCrawledAt}
+           </p>
         </div>
       </div>
 
