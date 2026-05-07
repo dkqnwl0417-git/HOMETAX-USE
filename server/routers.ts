@@ -13,6 +13,8 @@ import {
   getManualFiles,
   getNotifications,
   getUnreadCount,
+  getLastCrawledAt,
+  saveLastCrawledAt,
   incrementViewCount,
   insertManualFile,
   insertHometaxNotice,
@@ -35,6 +37,11 @@ export const appRouter = router({
   }),
   // ─── 홈택스 전자신고 설명서 ────────────────────────────────────────────────
   hometax: router({
+    lastCrawl: publicProcedure.query(async () => {
+      const crawledAt = await getLastCrawledAt();
+      return { crawledAt };
+    }),
+    
     list: publicProcedure
       .input(
         z.object({
@@ -88,7 +95,15 @@ export const appRouter = router({
     });
   }
 
-  return response.json();
+  const result = await response.json();
+const crawledAt = Date.now();
+
+await saveLastCrawledAt(crawledAt);
+
+return {
+  ...result,
+  crawledAt,
+};
 }),
     create: publicProcedure
   .input(
