@@ -110,7 +110,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Manual Crawl Button */}
+                {/* Manual Crawl Button */}
         <div className="mt-12 flex items-center gap-4">
           <Button
             variant="outline"
@@ -122,8 +122,8 @@ export default function Home() {
             <RefreshCw className={`w-4 h-4 ${crawlMutation.isPending ? "animate-spin" : ""}`} />
             {crawlMutation.isPending ? "수집 중..." : "지금 수집하기"}
           </Button>
-          <p className="text-xs text-muted-foreground">
-            <div className="flex flex-col gap-1">
+
+          <div className="flex flex-col gap-1">
             <p className="text-xs text-muted-foreground">
               홈택스 공지사항을 즉시 수집합니다. 자동 수집은 매일 오전 9시에 실행됩니다.
             </p>
