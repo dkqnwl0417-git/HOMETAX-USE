@@ -105,14 +105,53 @@ export async function initDb() {
       )
     `);
 
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS "appSettings" (
+        "key" text PRIMARY KEY NOT NULL,
+        "value" text NOT NULL,
+        "updatedAt" integer NOT NULL
+      )
+    `);
+
     console.log("[DB] Table initialization complete.");
   } catch (err) {
     console.error("[DB] Initialization failed:", err);
   }
 }
 
+export async function saveLastCrawledAt(crawledAt: number) {
+  const db = await getDb();
+
+  await db
+    .insert(schema.appSettings)
+    .values({
+      key: "lastCrawledAt",
+      value: String(crawledAt),
+      updatedAt: crawledAt,
+    })
+    .onConflictDoUpdate({
+      target: schema.appSettings.key,
+      set: {
+        value: String(crawledAt),
+        updatedAt: crawledAt,
+      },
+    });
+}
+
+export async function getLastCrawledAt() {
+  const db = await getDb();
+
+  const result = await db.query.appSettings.findFirst({
+    where: eq(schema.appSettings.key, "lastCrawledAt"),
+  });
+
+  return result ? Number(result.value) : null;
+}
+
 export async function getHometaxNotices(filters: any) {
   const db = await getDb();
+
+  
 
   const conditions = [];
 
