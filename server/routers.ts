@@ -90,11 +90,13 @@ export const appRouter = router({
   });
 
   if (!response.ok) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "크롤러 API 호출 실패",
-    });
-  }
+  const errorText = await response.text();
+
+  throw new TRPCError({
+    code: "INTERNAL_SERVER_ERROR",
+    message: `크롤러 API 호출 실패 (${response.status}): ${errorText}`,
+  });
+}
 
   const result = await response.json();
 const crawledAt = Date.now();
