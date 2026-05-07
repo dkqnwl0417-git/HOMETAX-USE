@@ -355,6 +355,13 @@ export async function updateHometaxNotice(id: number, data: any) {
     return false;
   }
 }
+export async function deleteAllNotifications() {
+  const db = await getDb();
+
+  const result = await db.delete(schema.notifications);
+
+  return Number(result.rowsAffected || 0);
+}
 
 export async function deleteHometaxNotice(id: number) {
   const db = await getDb();
