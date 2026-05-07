@@ -92,6 +92,23 @@ function DocBadge({ type }: { type: string }) {
   );
 }
 
+function SourceBadge({ sourceType }: { sourceType?: string }) {
+  const isAuto = sourceType === "auto";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold border",
+        isAuto
+          ? "bg-sky-50 text-sky-700 border-sky-100"
+          : "bg-lime-50 text-lime-700 border-lime-100"
+      )}
+    >
+      {isAuto ? "자동" : "수기"}
+    </span>
+  );
+}
+
 // ─── 상세/수정 모달 ───────────────────────────────────────────────────────
 function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => void; onSaved: () => void }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -557,6 +574,7 @@ export default function HometaxNotices() {
   const [endDate, setEndDate] = useState("");
   const [taxType, setTaxType] = useState("전체");
   const [docType, setDocType] = useState("전체");
+  const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -597,10 +615,11 @@ export default function HometaxNotices() {
       endDate: endDate || undefined,
       taxType: taxType === "전체" ? undefined : taxType,
       docType: docType === "전체" ? undefined : docType,
+      keyword: keyword.trim() || undefined,
       page,
       pageSize: PAGE_SIZE,
     }),
-    [startDate, endDate, taxType, docType, page]
+    [startDate, endDate, taxType, docType, keyword, page]
   );
 
   const { data, isLoading, refetch } = trpc.hometax.list.useQuery(queryInput);
@@ -629,7 +648,12 @@ export default function HometaxNotices() {
   };
 
   const handleFilterReset = () => {
-    setStartDate(""); setEndDate(""); setTaxType("전체"); setDocType("전체"); setPage(1);
+    setStartDate("");
+  setEndDate("");
+  setTaxType("전체");
+  setDocType("전체");
+  setKeyword("");
+  setPage(1);
   };
 
   return (
@@ -680,7 +704,7 @@ export default function HometaxNotices() {
           <Filter className="w-4 h-4 text-primary" />
           <span className="text-sm font-bold text-foreground">상세 필터</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground">시작일</label>
             <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} className="h-9 text-sm bg-background border-muted-foreground/20" />
@@ -703,11 +727,27 @@ export default function HometaxNotices() {
               <SelectContent>{DOC_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          <div className="space-y-1.5">
+  <label className="text-xs font-semibold text-muted-foreground">
+    검색어
+  </label>
+
+  <Input
+    value={keyword}
+    onChange={(e) => {
+      setKeyword(e.target.value);
+      setPage(1);
+    }}
+    placeholder="제목 검색"
+    className="h-9 text-sm bg-background border-muted-foreground/20"
+  />
+</div>
         </div>
         <div className="mt-4 flex justify-end">
           <Button variant="ghost" size="sm" onClick={handleFilterReset} className="text-xs text-muted-foreground hover:text-primary">필터 초기화</Button>
         </div>
       </div>
+      
 
       {/* 테이블 */}
       <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
@@ -736,6 +776,7 @@ export default function HometaxNotices() {
                 <tr className="bg-muted/30 border-b border-border">
                   <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-16">No</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">제목</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-20 hidden sm:table-cell">구분</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-28 hidden sm:table-cell">세금 유형</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-36 hidden md:table-cell">문서 유형</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-28 hidden lg:table-cell">등록일</th>
@@ -755,10 +796,14 @@ export default function HometaxNotices() {
                         <span className="line-clamp-2">{item.title}</span>
                       </button>
                       <div className="flex items-center gap-2 mt-1.5 sm:hidden">
+                        <SourceBadge sourceType={item.sourceType} />
                         <TaxBadge type={item.taxType} />
                         <DocBadge type={item.docType} />
                       </div>
                     </td>
+                    <td className="px-4 py-4 hidden sm:table-cell">
+  <SourceBadge sourceType={item.sourceType} />
+</td>
                     <td className="px-4 py-4 hidden sm:table-cell"><TaxBadge type={item.taxType} /></td>
                     <td className="px-4 py-4 hidden md:table-cell"><DocBadge type={item.docType} /></td>
                     <td className="px-4 py-4 text-sm text-muted-foreground hidden lg:table-cell">{item.date}</td>
