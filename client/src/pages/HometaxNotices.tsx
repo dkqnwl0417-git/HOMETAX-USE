@@ -118,7 +118,62 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
   const [editDate, setEditDate] = useState(item.date);
   const [editContent, setEditContent] = useState(item.content || "");
   const [editAttachments, setEditAttachments] = useState(item.attachments || "");
+
+  const [editUploadedFiles, setEditUploadedFiles] = useState<UploadedAttachment[]>(() => {
+    try {
+      return item.attachments ? JSON.parse(item.attachments) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [isEditUploadingFile, setIsEditUploadingFile] = useState(false);
   const [editUrl, setEditUrl] = useState(item.url || "");
+
+  const onEditDropRejected = useCallback((fileRejections: FileRejection[]) => {
+    if (fileRejections.length === 0) return;
+    toast.error("업로드할 수 없는 파일입니다. 파일 용량 또는 확장자를 확인해주세요.");
+  }, []);
+
+  const onEditDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0 || isEditUploadingFile) return;
+
+    setIsEditUploadingFile(true);
+
+    try {
+      const uploaded: UploadedAttachment[] = [];
+
+      for (const file of acceptedFiles) {
+        const result = await uploadFileWithProgress(file);
+
+        uploaded.push({
+          name: result.originalName,
+          url: result.fileUrl,
+          fileType: result.fileType,
+          mimeType: result.mimeType,
+        });
+      }
+
+      setEditUploadedFiles((prev) => [...prev, ...uploaded]);
+      toast.success(`${uploaded.length}개 파일이 업로드되었습니다.`);
+    } catch (err: any) {
+      toast.error(err?.message || "파일 업로드에 실패했습니다.");
+    } finally {
+      setIsEditUploadingFile(false);
+    }
+  }, [isEditUploadingFile]);
+
+  const {
+    getRootProps: getEditRootProps,
+    getInputProps: getEditInputProps,
+    isDragActive: isEditDragActive
+  } = useDropzone({
+    onDrop: onEditDrop,
+    onDropRejected: onEditDropRejected,
+    disabled: isEditUploadingFile,
+    multiple: true,
+    maxSize: MAX_FILE_SIZE,
+  });
 
   const updateMutation = trpc.hometax.update.useMutation({
     onSuccess: () => {
@@ -130,7 +185,11 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
   });
 
   const handleSave = () => {
-    if (!editTitle.trim()) { toast.error("제목을 입력해주세요."); return; }
+    if (!editTitle.trim()) {
+      toast.error("제목을 입력해주세요.");
+      return;
+    }
+
     updateMutation.mutate({
       id: item.id,
       title: editTitle.trim(),
@@ -139,7 +198,11 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
       docType: editDocType,
       date: editDate,
       content: editContent,
-      attachments: editAttachments,
+      attachments:
+        editUploadedFiles.length > 0
+          ? JSON.stringify(editUploadedFiles)
+          : editAttachments,
+      sourceType: item.sourceType || "manual",
     });
   };
 
@@ -152,21 +215,48 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
             <FileText className="w-5 h-5 text-primary" />
             {isEditing ? "내용 수정" : "상세 내용"}
           </h2>
+
           <div className="flex items-center gap-2">
             {!isEditing ? (
-              <Button size="sm" variant="outline" onClick={() => setIsEditing(true)} className="gap-2">
-                <Pencil className="w-4 h-4" /> 수정
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsEditing(true)}
+                className="gap-2"
+              >
+                <Pencil className="w-4 h-4" />
+                수정
               </Button>
             ) : (
               <>
-                <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)}>취소</Button>
-                <Button size="sm" onClick={handleSave} disabled={updateMutation.isPending} className="gap-2">
-                  {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setIsEditing(false)}
+                >
+                  취소
+                </Button>
+
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={updateMutation.isPending || isEditUploadingFile}
+                  className="gap-2"
+                >
+                  {updateMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
                   저장
                 </Button>
               </>
             )}
-            <button onClick={onClose} className="p-1.5 rounded-md hover:bg-muted transition-colors">
+
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-md hover:bg-muted transition-colors"
+            >
               <X className="w-5 h-5 text-muted-foreground" />
             </button>
           </div>
@@ -178,7 +268,11 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground">제목</label>
             {isEditing ? (
-              <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="bg-background" />
+              <Input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="bg-background"
+              />
             ) : (
               <p className="text-sm font-semibold text-foreground">{item.title}</p>
             )}
@@ -190,7 +284,9 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
               <label className="text-xs font-semibold text-muted-foreground">세금 유형</label>
               {isEditing ? (
                 <Select value={editTaxType} onValueChange={setEditTaxType}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {TAX_TYPES.filter(t => t !== "전체").map(t => (
                       <SelectItem key={t} value={t}>{t}</SelectItem>
@@ -201,11 +297,14 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                 <TaxBadge type={item.taxType} />
               )}
             </div>
+
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground">문서 유형</label>
               {isEditing ? (
                 <Select value={editDocType} onValueChange={setEditDocType}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {DOC_TYPES.filter(t => t !== "전체").map(t => (
                       <SelectItem key={t} value={t}>{t}</SelectItem>
@@ -216,10 +315,16 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                 <DocBadge type={item.docType} />
               )}
             </div>
+
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground">공지 날짜</label>
               {isEditing ? (
-                <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} className="h-9 text-sm bg-background" />
+                <Input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="h-9 text-sm bg-background"
+                />
               ) : (
                 <p className="text-sm text-foreground">{item.date}</p>
               )}
@@ -242,23 +347,79 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                 {item.content ? (
                   <p className="text-sm text-foreground whitespace-pre-wrap">{item.content}</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground italic">등록된 내용이 없습니다. 수정 버튼을 눌러 내용을 입력하세요.</p>
+                  <p className="text-sm text-muted-foreground italic">
+                    등록된 내용이 없습니다. 수정 버튼을 눌러 내용을 입력하세요.
+                  </p>
                 )}
               </div>
             )}
           </div>
 
-                    {/* 첨부파일 */}
+          {/* 첨부파일 */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground">첨부파일</label>
+
             {isEditing ? (
-              <textarea
-                value={editAttachments}
-                onChange={(e) => setEditAttachments(e.target.value)}
-                placeholder={"첨부파일 정보를 입력하세요\n예시:\n20260323_부가가치세_파일설명서.doc\n20260323_부가가치세_파일설명서.pdf"}
-                rows={4}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+              <div className="space-y-3">
+                <div
+                  {...getEditRootProps()}
+                  className={cn(
+                    "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
+                    isEditDragActive
+                      ? "border-primary bg-primary/5"
+                      : "border-muted-foreground/25 hover:border-primary/50",
+                    isEditUploadingFile && "opacity-70 pointer-events-none"
+                  )}
+                >
+                  <input {...getEditInputProps()} />
+
+                  {isEditUploadingFile ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                      <p className="text-sm font-medium">파일 업로드 중입니다...</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="w-8 h-8 text-primary" />
+                      <p className="text-sm font-medium">
+                        파일을 드래그하거나 클릭해서 업로드하세요
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        내부 메뉴얼 자료실과 동일한 업로드 방식 · 최대 50MB
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {editUploadedFiles.length > 0 && (
+                  <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                    {editUploadedFiles.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between gap-2 text-sm"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                          <span className="truncate">{file.name}</span>
+                        </div>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setEditUploadedFiles((prev) =>
+                              prev.filter((_, i) => i !== index)
+                            )
+                          }
+                        >
+                          삭제
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="rounded-lg bg-muted/30 border border-border p-4 min-h-[60px]">
                 {item.attachments ? (() => {
@@ -269,7 +430,10 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                       return (
                         <ul className="space-y-1">
                           {parsed.map((file: any, i: number) => (
-                            <li key={i} className="text-sm text-foreground flex items-center gap-2">
+                            <li
+                              key={i}
+                              className="text-sm text-foreground flex items-center gap-2"
+                            >
                               <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                               <a
                                 href={file.url}
@@ -291,7 +455,10 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                   return (
                     <ul className="space-y-1">
                       {item.attachments.split("\n").filter(Boolean).map((f: string, i: number) => (
-                        <li key={i} className="text-sm text-foreground flex items-center gap-2">
+                        <li
+                          key={i}
+                          className="text-sm text-foreground flex items-center gap-2"
+                        >
                           <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                           {f.trim()}
                         </li>
@@ -299,7 +466,9 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                     </ul>
                   );
                 })() : (
-                  <p className="text-sm text-muted-foreground italic">등록된 첨부파일이 없습니다. 수정 버튼을 눌러 입력하세요.</p>
+                  <p className="text-sm text-muted-foreground italic">
+                    등록된 첨부파일이 없습니다. 수정 버튼을 눌러 입력하세요.
+                  </p>
                 )}
               </div>
             )}
@@ -308,7 +477,6 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
           {/* 원본 URL */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground">원본 URL</label>
-
             {isEditing ? (
               <Input
                 value={editUrl}
@@ -332,6 +500,7 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
     </div>
   );
 }
+
 
 // ─── 수기 등록 모달 ───────────────────────────────────────────────────────
 function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
