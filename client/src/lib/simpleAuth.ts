@@ -1,5 +1,6 @@
 export type AppUser = {
   username: string;
+  role?: "admin" | "user";
 };
 
 const CURRENT_USER_KEY = "hometax-current-user";
