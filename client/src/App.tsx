@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
@@ -20,13 +20,23 @@ function AuthLifecycle() {
 }
 
 function ProtectedPage({ children }: { children: React.ReactNode }) {
-  const user = getCurrentUser();
+  const [user, setUser] = useState(() => getCurrentUser());
 
   useEffect(() => {
-    if (!user) {
+    const syncUser = () => {
+      setUser(getCurrentUser());
+    };
+
+    window.addEventListener("hometax-auth-changed", syncUser);
+
+    if (!getCurrentUser()) {
       requireLogin();
     }
-  }, [user]);
+
+    return () => {
+      window.removeEventListener("hometax-auth-changed", syncUser);
+    };
+  }, []);
 
   if (!user) {
     return (
