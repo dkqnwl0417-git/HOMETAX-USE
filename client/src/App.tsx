@@ -9,7 +9,7 @@ import Home from "./pages/Home";
 import HometaxNotices from "./pages/HometaxNotices";
 import ManualFiles from "./pages/ManualFiles";
 import NavBar from "./components/NavBar";
-import { initAuthActivityTracking } from "@/lib/simpleAuth";
+import { getCurrentUser, initAuthActivityTracking, requireLogin } from "@/lib/simpleAuth";
 
 function AuthLifecycle() {
   useEffect(() => {
@@ -19,6 +19,28 @@ function AuthLifecycle() {
   return null;
 }
 
+function ProtectedPage({ children }: { children: React.ReactNode }) {
+  const user = getCurrentUser();
+
+  useEffect(() => {
+    if (!user) {
+      requireLogin();
+    }
+  }, [user]);
+
+  if (!user) {
+    return (
+      <div className="container py-24 text-center">
+        <p className="text-sm text-muted-foreground">
+          로그인 후 이용할 수 있습니다.
+        </p>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
 function Router() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -26,8 +48,16 @@ function Router() {
       <main className="flex-1">
         <Switch>
           <Route path="/" component={Home} />
-          <Route path="/hometax" component={HometaxNotices} />
-          <Route path="/manual" component={ManualFiles} />
+          <Route path="/hometax">
+            <ProtectedPage>
+              <HometaxNotices />
+            </ProtectedPage>
+          </Route>
+          <Route path="/manual">
+            <ProtectedPage>
+              <ManualFiles />
+            </ProtectedPage>
+          </Route>
           <Route path="/404" component={NotFound} />
           <Route component={NotFound} />
         </Switch>
