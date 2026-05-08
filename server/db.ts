@@ -121,25 +121,89 @@ export async function initDb() {
       .execute(`ALTER TABLE "loginUsers" ADD COLUMN "role" text DEFAULT 'user' NOT NULL`)
       .catch(() => {});
     
-    await client.execute(`
+    await client
+  .execute(`ALTER TABLE "loginUsers" ADD COLUMN "role" text DEFAULT 'user' NOT NULL`)
+  .catch(() => {});
+
+const initialLoginUsers = [
+  "김지웅",
+  "이영철",
+  "전열",
+  "하해인",
+  "이영수",
+  "강우영",
+  "김용휘",
+  "이건희",
+  "정성희",
+  "김지현",
+  "김도연",
+  "권은진",
+  "문영숙",
+  "빈나리",
+  "이성봉",
+  "조은진",
+  "장혜연",
+  "이은수",
+  "지동근",
+  "이태호",
+  "김명순",
+  "우가영",
+  "이하연",
+  "이준원",
+  "장지훈",
+  "노동현",
+  "박현욱",
+  "이지수",
+  "강주은",
+  "이수빈",
+];
+
+for (const username of initialLoginUsers) {
+  await client.execute({
+    sql: `
       INSERT INTO "loginUsers" (
         "username",
         "password",
         "passwordSetupDone",
+        "role",
         "createdAt",
         "updatedAt"
       )
       SELECT
-        '김지웅',
+        ?,
         '1',
         0,
+        'user',
         strftime('%s','now') * 1000,
         strftime('%s','now') * 1000
       WHERE NOT EXISTS (
-        SELECT 1 FROM "loginUsers" WHERE "username" = '김지웅'
+        SELECT 1 FROM "loginUsers" WHERE "username" = ?
       )
-    `);
+    `,
+    args: [username, username],
+  });
+}
 
+await client.execute(`
+  INSERT INTO "loginUsers" (
+    "username",
+    "password",
+    "passwordSetupDone",
+    "role",
+    "createdAt",
+    "updatedAt"
+  )
+  SELECT
+    'admin',
+    'adminaicc',
+    1,
+    'admin',
+    strftime('%s','now') * 1000,
+    strftime('%s','now') * 1000
+  WHERE NOT EXISTS (
+    SELECT 1 FROM "loginUsers" WHERE "username" = 'admin'
+  )
+`);
     await client.execute(`
       UPDATE "loginUsers"
       SET "role" = 'admin'
