@@ -106,6 +106,36 @@ export async function initDb() {
     `);
 
     await client.execute(`
+      CREATE TABLE IF NOT EXISTS "loginUsers" (
+        "id" integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+        "username" text NOT NULL UNIQUE,
+        "password" text NOT NULL,
+        "passwordSetupDone" integer DEFAULT 0 NOT NULL,
+        "createdAt" integer NOT NULL,
+        "updatedAt" integer NOT NULL
+      )
+    `);
+    
+    await client.execute(`
+      INSERT INTO "loginUsers" (
+        "username",
+        "password",
+        "passwordSetupDone",
+        "createdAt",
+        "updatedAt"
+      )
+      SELECT
+        '김지웅',
+        '1',
+        0,
+        strftime('%s','now') * 1000,
+        strftime('%s','now') * 1000
+      WHERE NOT EXISTS (
+        SELECT 1 FROM "loginUsers" WHERE "username" = '김지웅'
+      )
+    `);
+    
+    await client.execute(`
       CREATE TABLE IF NOT EXISTS "appSettings" (
         "key" text PRIMARY KEY NOT NULL,
         "value" text NOT NULL,
@@ -117,6 +147,51 @@ export async function initDb() {
   } catch (err) {
     console.error("[DB] Initialization failed:", err);
   }
+}
+
+export async function loginWithPassword(username: string, password: string) {
+  const db = await getDb();
+
+  const user = await db.query.loginUsers.findFirst({
+    where: eq(schema.loginUsers.username, username),
+  });
+
+  if (!user) {
+    return {
+      success: false,
+      message: "등록되지 않은 아이디입니다.",
+    };
+  }
+
+  if (user.password !== password) {
+    return {
+      success: false,
+      message: "비밀번호가 일치하지 않습니다.",
+    };
+  }
+
+  return {
+    success: true,
+    user: {
+      username: user.username,
+    },
+    isInitialPassword: user.password === "1" && user.passwordSetupDone === 0,
+  };
+}
+
+export async function updateLoginPassword(username: string, password: string) {
+  const db = await getDb();
+
+  await db
+    .update(schema.loginUsers)
+    .set({
+      password,
+      passwordSetupDone: 1,
+      updatedAt: new Date().getTime(),
+    })
+    .where(eq(schema.loginUsers.username, username));
+
+  return true;
 }
 
 export async function saveLastCrawledAt(crawledAt: number) {
