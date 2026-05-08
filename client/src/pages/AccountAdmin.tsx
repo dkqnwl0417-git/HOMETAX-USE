@@ -10,6 +10,7 @@ import { toast } from "sonner";
 export default function AccountAdmin() {
   const currentUser = getCurrentUser();
   const [username, setUsername] = useState("");
+  const [searchKeyword, setSearchKeyword] = useState("");
 
   const utils = trpc.useUtils();
   const { data: users, isLoading } = trpc.auth.users.useQuery(undefined, {
@@ -47,6 +48,12 @@ export default function AccountAdmin() {
       utils.auth.users.invalidate();
     },
   });
+
+  const filteredUsers = [...(users || [])]
+  .filter((user: any) =>
+    user.username.toLowerCase().includes(searchKeyword.trim().toLowerCase())
+  )
+  .sort((a: any, b: any) => a.username.localeCompare(b.username, "ko-KR"));
 
   if (currentUser?.role !== "admin") {
     return (
@@ -108,13 +115,20 @@ export default function AccountAdmin() {
           <CardTitle className="text-lg">사용자 목록</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <Input
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              placeholder="사용자 이름 검색"
+            />
+          </div>
           {isLoading ? (
             <p className="text-sm text-muted-foreground">불러오는 중...</p>
-          ) : !users || users.length === 0 ? (
-            <p className="text-sm text-muted-foreground">등록된 사용자가 없습니다.</p>
+          ) : filteredUsers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">검색 결과가 없습니다.</p>
           ) : (
             <div className="space-y-2">
-              {users.map((user: any) => (
+              {filteredUsers.map((user: any) => (
                 <div
                   key={user.id}
                   className="flex items-center justify-between gap-3 rounded-lg border p-3"
