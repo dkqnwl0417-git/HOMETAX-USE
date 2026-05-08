@@ -111,10 +111,15 @@ export async function initDb() {
         "username" text NOT NULL UNIQUE,
         "password" text NOT NULL,
         "passwordSetupDone" integer DEFAULT 0 NOT NULL,
+        "role" text DEFAULT 'user' NOT NULL,
         "createdAt" integer NOT NULL,
         "updatedAt" integer NOT NULL
       )
     `);
+
+    await client
+      .execute(`ALTER TABLE "loginUsers" ADD COLUMN "role" text DEFAULT 'user' NOT NULL`)
+      .catch(() => {});
     
     await client.execute(`
       INSERT INTO "loginUsers" (
@@ -133,6 +138,12 @@ export async function initDb() {
       WHERE NOT EXISTS (
         SELECT 1 FROM "loginUsers" WHERE "username" = '김지웅'
       )
+    `);
+
+    await client.execute(`
+      UPDATE "loginUsers"
+      SET "role" = 'admin'
+      WHERE "username" = '김지웅'
     `);
     
     await client.execute(`
@@ -174,6 +185,7 @@ export async function loginWithPassword(username: string, password: string) {
     success: true,
     user: {
       username: user.username,
+      role: user.role || "user",
     },
     isInitialPassword: user.password === "1" && user.passwordSetupDone === 0,
   };
