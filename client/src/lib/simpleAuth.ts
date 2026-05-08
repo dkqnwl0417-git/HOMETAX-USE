@@ -75,24 +75,6 @@ export function logout() {
   emitAuthChanged();
 }
 
-export function updatePassword(username: string, newPassword: string) {
-  const password = newPassword.trim();
-
-  if (!password) {
-    return { success: false, message: "비밀번호를 입력해주세요." };
-  }
-
-  const overrides = getPasswordOverrides();
-  overrides[username] = password;
-  localStorage.setItem(PASSWORD_OVERRIDES_KEY, JSON.stringify(overrides));
-  
-  const setupDone = getPasswordSetupDone();
-  setupDone[username] = true;
-  localStorage.setItem(PASSWORD_SETUP_DONE_KEY, JSON.stringify(setupDone));
-
-  return { success: true };
-}
-
 export function requireLogin() {
   window.dispatchEvent(new Event(OPEN_LOGIN_EVENT));
 }
