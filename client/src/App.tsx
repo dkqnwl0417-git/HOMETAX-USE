@@ -56,19 +56,29 @@ function Router() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <NavBar />
+
       <main className="flex-1">
         <Switch>
           <Route path="/" component={Home} />
+
           <Route path="/hometax">
             <ProtectedPage>
               <HometaxNotices />
             </ProtectedPage>
           </Route>
+
           <Route path="/manual">
             <ProtectedPage>
               <ManualFiles />
             </ProtectedPage>
           </Route>
+
+          <Route path="/account-admin">
+            <ProtectedPage>
+              <AccountAdmin />
+            </ProtectedPage>
+          </Route>
+
           <Route path="/404" component={NotFound} />
           <Route component={NotFound} />
         </Switch>
@@ -76,12 +86,6 @@ function Router() {
     </div>
   );
 }
-
-<Route path="/account-admin">
-  <ProtectedPage>
-    <AccountAdmin />
-  </ProtectedPage>
-</Route>
 
 function App() {
   return (
