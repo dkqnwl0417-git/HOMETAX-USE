@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { FileText, BookOpen, ArrowRight, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
+import { getCurrentUser, requireLogin } from "@/lib/simpleAuth";
 import { toast } from "sonner";
 
 export default function Home() {
@@ -116,7 +117,14 @@ export default function Home() {
             variant="outline"
             size="sm"
             className="gap-2 bg-card"
-            onClick={() => crawlMutation.mutate()}
+            onClick={() => {
+              if (!getCurrentUser()) {
+                requireLogin();
+                return;
+              }
+            
+              crawlMutation.mutate();
+            }}
             disabled={crawlMutation.isPending}
           >
             <RefreshCw className={`w-4 h-4 ${crawlMutation.isPending ? "animate-spin" : ""}`} />
