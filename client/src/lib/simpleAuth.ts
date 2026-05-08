@@ -49,6 +49,7 @@ export const LOGIN_USERS: LoginUser[] = [
 
 const CURRENT_USER_KEY = "hometax-current-user";
 const PASSWORD_OVERRIDES_KEY = "hometax-password-overrides";
+const PASSWORD_SETUP_DONE_KEY = "hometax-password-setup-done";
 const LAST_ACTIVITY_KEY = "hometax-last-activity";
 const SESSION_LIMIT_MS = 3 * 60 * 60 * 1000;
 
@@ -62,6 +63,14 @@ function emitAuthChanged() {
 function getPasswordOverrides(): Record<string, string> {
   try {
     return JSON.parse(localStorage.getItem(PASSWORD_OVERRIDES_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function getPasswordSetupDone(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(PASSWORD_SETUP_DONE_KEY) || "{}");
   } catch {
     return {};
   }
@@ -108,12 +117,13 @@ export function login(username: string, password: string) {
   touchActivity();
   emitAuthChanged();
 
+  const passwordSetupDone = getPasswordSetupDone();
+
   return {
     success: true,
     user: loginUser,
-    isInitialPassword: effectivePassword === "1",
+    isInitialPassword: effectivePassword === "1" && !passwordSetupDone[trimmedUsername],
   };
-}
 
 export function logout() {
   sessionStorage.removeItem(CURRENT_USER_KEY);
@@ -131,6 +141,10 @@ export function updatePassword(username: string, newPassword: string) {
   const overrides = getPasswordOverrides();
   overrides[username] = password;
   localStorage.setItem(PASSWORD_OVERRIDES_KEY, JSON.stringify(overrides));
+  
+  const setupDone = getPasswordSetupDone();
+  setupDone[username] = true;
+  localStorage.setItem(PASSWORD_SETUP_DONE_KEY, JSON.stringify(setupDone));
 
   return { success: true };
 }
