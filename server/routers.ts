@@ -11,6 +11,10 @@ import {
   getHometaxNotices,
   loginWithPassword,
   updateLoginPassword,
+  getLoginUsers,
+  createLoginUser,
+  deleteLoginUser,
+  resetLoginPassword,
   getHometaxNoticeById,
   getManualFiles,
   getNotifications,
@@ -64,7 +68,41 @@ export const appRouter = router({
           success: true,
         };
       }),
-  
+
+users: publicProcedure.query(async () => {
+  return await getLoginUsers();
+}),
+
+createUser: publicProcedure
+  .input(
+    z.object({
+      username: z.string().min(1),
+    })
+  )
+  .mutation(async ({ input }) => {
+    return await createLoginUser(input.username.trim());
+  }),
+
+deleteUser: publicProcedure
+  .input(
+    z.object({
+      username: z.string().min(1),
+    })
+  )
+  .mutation(async ({ input }) => {
+    return await deleteLoginUser(input.username);
+  }),
+
+resetPassword: publicProcedure
+  .input(
+    z.object({
+      username: z.string().min(1),
+    })
+  )
+  .mutation(async ({ input }) => {
+    return await resetLoginPassword(input.username);
+  }),
+    
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
   
