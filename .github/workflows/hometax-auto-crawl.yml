@@ -2,8 +2,6 @@ name: Hometax Auto Crawl
 
 on:
   schedule:
-    # KST 09:00 = UTC 00:00
-    # KST 15:00 = UTC 06:00
     - cron: "0 0,6 * * *"
   workflow_dispatch:
 
@@ -12,9 +10,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Wake Main Site
+        run: |
+          curl -L --fail --show-error --silent https://hometax-use.onrender.com/health > /dev/null
+
+      - name: Wake Crawler API
+        run: |
+          curl -L --fail --show-error --silent https://hometax-crawler-api.onrender.com/health > /dev/null
+
+      - name: Wait for Render wake up
+        run: |
+          sleep 30
+
       - name: Call Main Site Crawl API
         run: |
           curl -L --fail --show-error --silent \
             -X POST "https://hometax-use.onrender.com/api/trpc/hometax.crawl" \
             -H "Content-Type: application/json" \
-            --data '{"json":{}}'
+            --data '{}'
