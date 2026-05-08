@@ -8,6 +8,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import HometaxNotices from "./pages/HometaxNotices";
 import ManualFiles from "./pages/ManualFiles";
+import AccountAdmin from "./pages/AccountAdmin";
 import NavBar from "./components/NavBar";
 import { getCurrentUser, initAuthActivityTracking, requireLogin } from "@/lib/simpleAuth";
 
@@ -75,6 +76,12 @@ function Router() {
     </div>
   );
 }
+
+<Route path="/account-admin">
+  <ProtectedPage>
+    <AccountAdmin />
+  </ProtectedPage>
+</Route>
 
 function App() {
   return (
