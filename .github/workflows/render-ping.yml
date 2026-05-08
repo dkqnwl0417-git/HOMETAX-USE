@@ -2,7 +2,7 @@ name: Keep Render Awake
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Ping Main Site
+      - name: Ping Main Site Health
         run: |
-          curl -L --fail --show-error --silent https://hometax-use.onrender.com > /dev/null
+          curl -L --fail --show-error --silent https://hometax-use.onrender.com/health > /dev/null
 
-      - name: Ping Crawler API
+      - name: Ping Crawler API Health
         run: |
-          curl -L --fail --show-error --silent https://hometax-crawler-api.onrender.com > /dev/null
+          curl -L --fail --show-error --silent https://hometax-crawler-api.onrender.com/health > /dev/null
