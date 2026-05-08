@@ -8,8 +8,43 @@ type LoginUser = {
 };
 
 // GitHub에서 계정 추가/수정/삭제는 여기만 관리하면 됩니다.
+// GitHub에서 계정 추가/수정/삭제는 여기만 관리하면 됩니다.
+// username = 로그인 아이디이자 등록자 이름
+// password = 초기 비밀번호
+//
+// 계정 추가 예시:
+// { username: "홍길동", password: "1" },
 export const LOGIN_USERS: LoginUser[] = [
   { username: "김지웅", password: "1" },
+  { username: "이영철", password: "1" },
+  { username: "전열", password: "1" },
+  { username: "하해인", password: "1" },
+  { username: "이영수", password: "1" },
+  { username: "강우영", password: "1" },
+  { username: "김용휘", password: "1" },
+  { username: "이건희", password: "1" },
+  { username: "정성희", password: "1" },
+  { username: "김지현", password: "1" },
+  { username: "김도연", password: "1" },
+  { username: "권은진", password: "1" },
+  { username: "문영숙", password: "1" },
+  { username: "빈나리", password: "1" },
+  { username: "이성봉", password: "1" },
+  { username: "조은진", password: "1" },
+  { username: "장혜연", password: "1" },
+  { username: "이은수", password: "1" },
+  { username: "지동근", password: "1" },
+  { username: "이태호", password: "1" },
+  { username: "김명순", password: "1" },
+  { username: "우가영", password: "1" },
+  { username: "이하연", password: "1" },
+  { username: "이준원", password: "1" },
+  { username: "장지훈", password: "1" },
+  { username: "노동현", password: "1" },
+  { username: "박현욱", password: "1" },
+  { username: "이지수", password: "1" },
+  { username: "강주은", password: "1" },
+  { username: "이수빈", password: "1" },
 ];
 
 const CURRENT_USER_KEY = "hometax-current-user";
