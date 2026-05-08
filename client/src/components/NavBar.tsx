@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Bell, FileText, BookOpen, Home, X, Trash2, LogIn, LogOut } from "lucide-react";
+import { Bell, FileText, BookOpen, Home, X, Trash2, LogIn, LogOut, Users } from "lucide-react";
 import {
   AUTH_CHANGED_EVENT,
   OPEN_LOGIN_EVENT,
@@ -170,6 +170,9 @@ export default function NavBar() {
     { href: "/", label: "홈", icon: Home },
     { href: "/hometax", label: "홈택스 전자신고 설명서", icon: FileText },
     { href: "/manual", label: "내부 메뉴얼 자료실", icon: BookOpen },
+    ...(authUser?.role === "admin"
+      ? [{ href: "/account-admin", label: "계정관리", icon: Users }]
+      : []),
   ];
 
   return (
