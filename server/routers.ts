@@ -99,6 +99,8 @@ export const appRouter = router({
 }
 
   const result = await response.json();
+
+  console.log("[Crawler API Result]", result);
 const crawledAt = Date.now();
 
 await saveLastCrawledAt(crawledAt);
