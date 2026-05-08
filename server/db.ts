@@ -206,8 +206,14 @@ await client.execute(`
 `);
     await client.execute(`
       UPDATE "loginUsers"
-      SET "role" = 'admin'
+      SET "role" = 'user'
       WHERE "username" = '김지웅'
+    `);
+    
+    await client.execute(`
+      UPDATE "loginUsers"
+      SET "role" = 'admin'
+      WHERE "username" = 'admin'
     `);
     
     await client.execute(`
