@@ -34,8 +34,9 @@ export async function login(username: string, password: string) {
     headers: {
       "Content-Type": "application/json",
     },
+
     body: JSON.stringify({
-      input: {
+      json: {
         username: username.trim(),
         password,
       },
@@ -52,11 +53,17 @@ export async function login(username: string, password: string) {
   if (!data?.success) {
     return {
       success: false,
-      message: data?.message || "로그인에 실패했습니다.",
+      message:
+        data?.message ||
+        "로그인에 실패했습니다.",
     };
   }
 
-  sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(data.user));
+  sessionStorage.setItem(
+    CURRENT_USER_KEY,
+    JSON.stringify(data.user)
+  );
+
   touchActivity();
   emitAuthChanged();
 
@@ -85,7 +92,7 @@ export async function updatePassword(
       },
 
       body: JSON.stringify({
-        input: {
+        json: {
           username,
           password,
         },
