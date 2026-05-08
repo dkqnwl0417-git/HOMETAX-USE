@@ -100,39 +100,45 @@ export default function NavBar() {
     };
   }, []);
 
-  const handleLoginSubmit = () => {
-    const result = login(loginId, loginPassword);
+  const handleLoginSubmit = async () => {
+  const result = await login(
+    loginId,
+    loginPassword
+  );
 
-    if (!result.success) {
-      setLoginError(result.message);
-      return;
-    }
+  if (!result.success) {
+    setLoginError(result.message);
+    return;
+  }
 
-    setAuthUser(result.user || null);
-    setLoginOpen(false);
-    setLoginError("");
-    setLoginPassword("");
+  setAuthUser(result.user || null);
+  setLoginOpen(false);
+  setLoginError("");
+  setLoginPassword("");
 
-    if (result.isInitialPassword) {
-      setNewPassword("1");
-      setPasswordOpen(true);
-    }
-  };
+  if (result.isInitialPassword) {
+    setNewPassword("1");
+    setPasswordOpen(true);
+  }
+};
 
-  const handlePasswordSave = () => {
-    if (!authUser) return;
+  const handlePasswordSave = async () => {
+  if (!authUser) return;
 
-    const result = updatePassword(authUser.username, newPassword);
+  const result = await updatePassword(
+    authUser.username,
+    newPassword
+  );
 
-    if (!result.success) {
-      setLoginError(result.message);
-      return;
-    }
+  if (!result.success) {
+    setLoginError("비밀번호 저장 실패");
+    return;
+  }
 
-    setPasswordOpen(false);
-    setNewPassword("");
-    setLoginError("");
-  };
+  setPasswordOpen(false);
+  setNewPassword("");
+  setLoginError("");
+};
 
   const handleLogout = () => {
     logout();
