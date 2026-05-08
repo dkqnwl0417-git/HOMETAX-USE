@@ -13,30 +13,6 @@ function emitAuthChanged() {
   window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
 }
 
-function getPasswordOverrides(): Record<string, string> {
-  try {
-    return JSON.parse(localStorage.getItem(PASSWORD_OVERRIDES_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function getPasswordSetupDone(): Record<string, boolean> {
-  try {
-    return JSON.parse(localStorage.getItem(PASSWORD_SETUP_DONE_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function getEffectivePassword(username: string) {
-  const baseUser = LOGIN_USERS.find((user) => user.username === username);
-  if (!baseUser) return null;
-
-  const overrides = getPasswordOverrides();
-  return overrides[username] || baseUser.password;
-}
-
 export function getCurrentUser(): AppUser | null {
   try {
     const raw = sessionStorage.getItem(CURRENT_USER_KEY);
@@ -51,33 +27,47 @@ export function touchActivity() {
   localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
 }
 
-export function login(username: string, password: string) {
-  const trimmedUsername = username.trim();
-  const user = LOGIN_USERS.find((item) => item.username === trimmedUsername);
+export async function updatePassword(
+  username: string,
+  newPassword: string
+) {
+  const password = newPassword.trim();
 
-  if (!user) {
-    return { success: false, message: "등록되지 않은 아이디입니다." };
+  if (!password) {
+    return {
+      success: false,
+      message: "비밀번호를 입력해주세요.",
+    };
   }
 
-  const effectivePassword = getEffectivePassword(trimmedUsername);
+  const response = await fetch(
+    "/api/trpc/auth.changePassword",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
 
-  if (effectivePassword !== password) {
-    return { success: false, message: "비밀번호가 일치하지 않습니다." };
-  }
+      body: JSON.stringify({
+        input: {
+          username,
+          password,
+        },
+      }),
+    }
+  );
 
-  const loginUser = { username: trimmedUsername };
-  sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(loginUser));
-  touchActivity();
-  emitAuthChanged();
+  const result = await response.json();
 
-  const passwordSetupDone = getPasswordSetupDone();
+  const data =
+    result?.result?.data?.json ||
+    result?.result?.data ||
+    result;
 
   return {
-    success: true,
-    user: loginUser,
-    isInitialPassword: effectivePassword === "1" && !passwordSetupDone[trimmedUsername],
+    success: !!data?.success,
   };
-  }
+}
 
 export function logout() {
   sessionStorage.removeItem(CURRENT_USER_KEY);
