@@ -436,9 +436,7 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                             >
                               <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                               <a
-                                href={file.url}
-                                target="_blank"
-                                rel="noreferrer"
+                                href={`/api/download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(file.name)}${file.mimeType ? `&mimeType=${encodeURIComponent(file.mimeType)}` : ""}`}
                                 className="text-primary hover:underline break-all"
                               >
                                 {file.name}
