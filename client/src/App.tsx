@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
@@ -8,6 +9,15 @@ import Home from "./pages/Home";
 import HometaxNotices from "./pages/HometaxNotices";
 import ManualFiles from "./pages/ManualFiles";
 import NavBar from "./components/NavBar";
+import { initAuthActivityTracking } from "@/lib/simpleAuth";
+
+function AuthLifecycle() {
+  useEffect(() => {
+    return initAuthActivityTracking();
+  }, []);
+
+  return null;
+}
 
 function Router() {
   return (
@@ -32,6 +42,7 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
+          <AuthLifecycle />
           <Router />
         </TooltipProvider>
       </ThemeProvider>
