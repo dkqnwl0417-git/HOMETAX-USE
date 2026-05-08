@@ -47,6 +47,15 @@ export const notifications = sqliteTable("notifications", {
   createdAt: integer("createdAt").notNull(), // 타임스탬프 정수형
 });
 
+export const loginUsers = sqliteTable("loginUsers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  passwordSetupDone: integer("passwordSetupDone").notNull().default(0),
+  createdAt: integer("createdAt").notNull(),
+  updatedAt: integer("updatedAt").notNull(),
+});
+
 export const appSettings = sqliteTable("appSettings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
@@ -61,3 +70,5 @@ export type ManualFile = typeof manualFiles.$inferSelect;
 export type InsertManualFile = typeof manualFiles.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
+export type LoginUser = typeof loginUsers.$inferSelect;
+export type InsertLoginUser = typeof loginUsers.$inferInsert;
