@@ -1,0 +1,20 @@
+name: Hometax Auto Crawl
+
+on:
+  schedule:
+    # KST 09:00 = UTC 00:00
+    # KST 15:00 = UTC 06:00
+    - cron: "0 0,6 * * *"
+  workflow_dispatch:
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Call Main Site Crawl API
+        run: |
+          curl -L --fail --show-error --silent \
+            -X POST "https://hometax-use.onrender.com/api/trpc/hometax.crawl" \
+            -H "Content-Type: application/json" \
+            --data '{"json":{}}'
