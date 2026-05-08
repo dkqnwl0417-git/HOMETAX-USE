@@ -351,8 +351,8 @@ setNotifOpen(false);
         </div>
       </div>
     {loginOpen && (
-      <div className="fixed inset-0 z-[9999] bg-black/40 px-4">
-        <div className="fixed left-1/2 top-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card p-5 shadow-xl">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+        <div className="relative w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-foreground">로그인</h2>
             <button
@@ -402,8 +402,8 @@ setNotifOpen(false);
     )}
 
     {passwordOpen && authUser && (
-      <div className="fixed inset-0 z-[9999] bg-black/40 px-4">
-        <div className="fixed left-1/2 top-1/2 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card p-5 shadow-xl">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+        <div className="relative w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl">
           <h2 className="text-lg font-bold text-foreground mb-2">비밀번호 설정</h2>
           <p className="text-sm text-muted-foreground mb-4">
             원하는 비밀번호로 변경할 수 있습니다. 기존처럼 1로 유지해도 됩니다.
