@@ -1,6 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Bell, FileText, BookOpen, Home, X, Trash2 } from "lucide-react";
+import { Bell, FileText, BookOpen, Home, X, Trash2, LogIn, LogOut } from "lucide-react";
+import {
+  AUTH_CHANGED_EVENT,
+  OPEN_LOGIN_EVENT,
+  getCurrentUser,
+  login,
+  logout,
+  updatePassword,
+  type AppUser,
+} from "@/lib/simpleAuth";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
 
@@ -8,6 +17,14 @@ export default function NavBar() {
   const [location, setLocation] = useLocation();
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  const [authUser, setAuthUser] = useState<AppUser | null>(() => getCurrentUser());
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [loginId, setLoginId] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
 
   const { data: unreadData, refetch: refetchUnread } = trpc.notifications.unreadCount.useQuery(
     undefined,
@@ -75,6 +92,60 @@ setNotifOpen(false);
   },
 });
 
+  useEffect(() => {
+    const syncAuth = () => setAuthUser(getCurrentUser());
+    const openLogin = () => setLoginOpen(true);
+
+    window.addEventListener(AUTH_CHANGED_EVENT, syncAuth);
+    window.addEventListener(OPEN_LOGIN_EVENT, openLogin);
+
+    return () => {
+      window.removeEventListener(AUTH_CHANGED_EVENT, syncAuth);
+      window.removeEventListener(OPEN_LOGIN_EVENT, openLogin);
+    };
+  }, []);
+
+  const handleLoginSubmit = () => {
+    const result = login(loginId, loginPassword);
+
+    if (!result.success) {
+      setLoginError(result.message);
+      return;
+    }
+
+    setAuthUser(result.user || null);
+    setLoginOpen(false);
+    setLoginError("");
+    setLoginPassword("");
+
+    if (result.isInitialPassword) {
+      setNewPassword("1");
+      setPasswordOpen(true);
+    }
+  };
+
+  const handlePasswordSave = () => {
+    if (!authUser) return;
+
+    const result = updatePassword(authUser.username, newPassword);
+
+    if (!result.success) {
+      setLoginError(result.message);
+      return;
+    }
+  
+    setPasswordOpen(false);
+    setNewPassword("");
+    setLoginError("");
+  };
+
+  const handleLogout = () => {
+    logout();
+    setAuthUser(null);
+    setLoginId("");
+    setLoginPassword("");
+  };
+  
   // 외부 클릭 시 닫기
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -137,6 +208,33 @@ setNotifOpen(false);
           })}
         </nav>
 
+         <div className="flex items-center justify-end gap-2 min-w-[150px]">
+          {authUser ? (
+            <>
+              <span className="hidden sm:inline text-sm font-medium text-foreground">
+                {authUser.username}님
+              </span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="w-4 h-4" />
+                로그아웃
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setLoginOpen(true)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+           >
+              <LogIn className="w-4 h-4" />
+              로그인
+            </button>
+          )}
+        </div>     
+        
         {/* Notification Bell */}
         <div className="relative" ref={notifRef}>
           <button
@@ -251,6 +349,88 @@ setNotifOpen(false);
 )}
         </div>
       </div>
+    {loginOpen && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4">
+        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-foreground">로그인</h2>
+            <button
+              type="button"
+              onClick={() => setLoginOpen(false)}
+              className="p-1 rounded-md hover:bg-muted"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">아이디</label>
+              <input
+                value={loginId}
+                onChange={(e) => setLoginId(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="이름을 입력하세요"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium">비밀번호</label>
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleLoginSubmit();
+                }}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                placeholder="초기 비밀번호는 1입니다"
+              />
+            </div>
+
+            {loginError && (
+              <p className="text-xs text-destructive">{loginError}</p>
+            )}
+
+            <Button className="w-full" onClick={handleLoginSubmit}>
+              로그인
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {passwordOpen && authUser && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4">
+        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl">
+          <h2 className="text-lg font-bold text-foreground mb-2">비밀번호 설정</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            원하는 비밀번호로 변경할 수 있습니다. 기존처럼 1로 유지해도 됩니다.
+          </p>
+
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm mb-3"
+            placeholder="새 비밀번호"
+          />
+
+          {loginError && (
+            <p className="text-xs text-destructive mb-3">{loginError}</p>
+          )}
+    
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setPasswordOpen(false)}>
+              나중에
+            </Button>
+            <Button onClick={handlePasswordSave}>
+              저장
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
     </header>
   );
 }
