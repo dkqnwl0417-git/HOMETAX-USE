@@ -270,6 +270,73 @@ export async function updateLoginPassword(username: string, password: string) {
   return true;
 }
 
+export async function getLoginUsers() {
+  const db = await getDb();
+
+  return db.query.loginUsers.findMany({
+    orderBy: [desc(schema.loginUsers.id)],
+  });
+}
+
+export async function createLoginUser(username: string) {
+  const db = await getDb();
+  const now = new Date().getTime();
+
+  const existing = await db.query.loginUsers.findFirst({
+    where: eq(schema.loginUsers.username, username),
+  });
+
+  if (existing) {
+    return {
+      success: false,
+      message: "이미 존재하는 사용자입니다.",
+    };
+  }
+
+  await db.insert(schema.loginUsers).values({
+    username,
+    password: "1",
+    passwordSetupDone: 0,
+    role: "user",
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  return { success: true };
+}
+
+export async function deleteLoginUser(username: string) {
+  if (username === "admin") {
+    return {
+      success: false,
+      message: "관리자 계정은 삭제할 수 없습니다.",
+    };
+  }
+
+  const db = await getDb();
+
+  await db
+    .delete(schema.loginUsers)
+    .where(eq(schema.loginUsers.username, username));
+
+  return { success: true };
+}
+
+export async function resetLoginPassword(username: string) {
+  const db = await getDb();
+
+  await db
+    .update(schema.loginUsers)
+    .set({
+      password: "1",
+      passwordSetupDone: 0,
+      updatedAt: new Date().getTime(),
+    })
+    .where(eq(schema.loginUsers.username, username));
+
+  return { success: true };
+}
+
 export async function saveLastCrawledAt(crawledAt: number) {
   const db = await getDb();
 
