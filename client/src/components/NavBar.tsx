@@ -11,6 +11,7 @@ import {
   type AppUser,
 } from "@/lib/simpleAuth";
 import { trpc } from "@/lib/trpc";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export default function NavBar() {
