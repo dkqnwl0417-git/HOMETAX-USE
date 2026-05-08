@@ -27,6 +27,41 @@ export function touchActivity() {
   localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
 }
 
+export async function login(username: string, password: string) {
+  const response = await fetch("/api/trpc/auth.login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      input: {
+        username: username.trim(),
+        password,
+      },
+    }),
+  });
+
+  const result = await response.json();
+
+  const data =
+    result?.result?.data?.json ||
+    result?.result?.data ||
+    result;
+
+  if (!data?.success) {
+    return {
+      success: false,
+      message: data?.message || "로그인에 실패했습니다.",
+    };
+  }
+
+  sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(data.user));
+  touchActivity();
+  emitAuthChanged();
+
+  return data;
+}
+
 export async function updatePassword(
   username: string,
   newPassword: string
