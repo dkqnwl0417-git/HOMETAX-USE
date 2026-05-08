@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { getCurrentUser, requireLogin } from "@/lib/simpleAuth";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
@@ -125,10 +126,11 @@ export default function ManualFiles() {
   const [keyword, setKeyword] = useState("");
   const [page, setPage] = useState(1);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploaderName, setUploaderName] = useState("");
   const [uploadQueue, setUploadQueue] = useState<UploadQueueItem[]>([]);
   const [overallProgress, setOverallProgress] = useState(0);
   const { toast } = useToast();
+
+  const currentUser = getCurrentUser();
 
   const utils = trpc.useContext();
   const { data, isLoading } = trpc.manual.list.useQuery({
@@ -146,7 +148,7 @@ export default function ManualFiles() {
     },
     onError: (err) => {
       toast({ title: "삭제 실패", description: err.message, variant: "destructive" });
-    }
+    },
   });
 
   const updateQueueItem = useCallback((id: string, patch: Partial<UploadQueueItem>) => {
@@ -158,8 +160,11 @@ export default function ManualFiles() {
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0 || isUploading) return;
 
-    if (!uploaderName.trim()) {
-      toast({ title: "알림", description: "등록자 이름을 먼저 입력해주세요.", variant: "destructive" });
+    const loginUser = getCurrentUser();
+
+    if (!loginUser) {
+      requireLogin();
+      toast({ title: "알림", description: "로그인 후 자료를 등록할 수 있습니다.", variant: "destructive" });
       return;
     }
 
@@ -205,7 +210,7 @@ export default function ManualFiles() {
           fileType: result.fileType,
           originalName: result.originalName,
           mimeType: result.mimeType,
-          uploader: uploaderName.trim(),
+          uploader: loginUser.username,
         });
 
         successCount += 1;
@@ -248,7 +253,7 @@ export default function ManualFiles() {
       description: `${failedCount}개 파일 업로드에 실패했습니다.`,
       variant: "destructive",
     });
-  }, [isUploading, toast, updateQueueItem, uploadMutation, uploaderName, utils]);
+  }, [isUploading, toast, updateQueueItem, uploadMutation, utils]);
 
   const onDropRejected = useCallback((fileRejections: FileRejection[]) => {
     if (fileRejections.length === 0) return;
@@ -325,13 +330,10 @@ export default function ManualFiles() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">등록자 성함</label>
-                <Input
-                  placeholder="이름을 입력하세요"
-                  value={uploaderName}
-                  onChange={(e) => setUploaderName(e.target.value)}
-                  disabled={isUploading}
-                />
+                <label className="text-sm font-medium">등록자</label>
+                <div className="rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                  {currentUser ? `${currentUser.username}님` : "로그인 후 자동 반영됩니다."}
+                </div>
               </div>
 
               <div
