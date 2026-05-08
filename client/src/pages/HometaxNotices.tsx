@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getCurrentUser, requireLogin } from "@/lib/simpleAuth";
 
 const TAX_TYPES = ["전체", "부가가치세", "종합소득세", "법인세", "원천세", "양도소득세", "상속/증여세", "개별소비세", "기타"];
 const DOC_TYPES = ["전체", "파일설명서", "전산매체 제출요령", "기타"];
@@ -746,6 +747,18 @@ export default function HometaxNotices() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
+  const ensureLogin = () => {
+  const user = getCurrentUser();
+
+  if (!user) {
+    requireLogin();
+    toast.error("로그인 후 이용할 수 있습니다.");
+    return false;
+  }
+
+  return true;
+};
+
   useEffect(() => {
   const openNotice = (notice: any) => {
     setSelectedItem(notice);
@@ -822,6 +835,8 @@ export default function HometaxNotices() {
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
 
   const handleTitleClick = (item: any) => {
+    if (!ensureLogin()) return;
+    
     incrementView.mutate({ id: item.id });
     setSelectedItem(item);
   };
@@ -859,7 +874,7 @@ export default function HometaxNotices() {
 
   <div className="flex flex-col items-end gap-2 self-start sm:self-auto">
     <div className="flex flex-wrap gap-2 justify-end">
-      <Button size="sm" variant="default" className="gap-2 shadow-sm" onClick={() => setShowCreateModal(true)}>
+      <Button size="sm" variant="default" className="gap-2 shadow-sm" onClick={() => { if (ensureLogin()) setShowCreateModal(true); }}>
         <Plus className="w-4 h-4" /> 수기 등록
       </Button>
 
@@ -867,7 +882,7 @@ export default function HometaxNotices() {
         size="sm"
         variant="outline"
         className="gap-2 bg-card shadow-sm"
-        onClick={() => crawlMutation.mutate()}
+        onClick={() => { if (ensureLogin()) crawlMutation.mutate(); }}
         disabled={crawlMutation.isPending}
       >
         <RefreshCw className={cn("w-4 h-4", crawlMutation.isPending && "animate-spin")} />
@@ -879,6 +894,7 @@ export default function HometaxNotices() {
         variant="ghost"
         className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
         onClick={() => {
+          if (!ensureLogin()) return;
           if (confirm("모든 데이터를 삭제하시겠습니까?")) deleteAllMutation.mutate();
         }}
         disabled={deleteAllMutation.isPending}
@@ -1009,7 +1025,7 @@ export default function HometaxNotices() {
                     </td>
                     <td className="px-4 py-4 text-center">
                       <button
-                        onClick={() => { if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: item.id }); }}
+                        onClick={() => { if (!ensureLogin()) return; if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: item.id }); }}
                         className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
                         title="삭제"
                       >
