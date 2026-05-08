@@ -124,6 +124,7 @@ export function login(username: string, password: string) {
     user: loginUser,
     isInitialPassword: effectivePassword === "1" && !passwordSetupDone[trimmedUsername],
   };
+  }
 
 export function logout() {
   sessionStorage.removeItem(CURRENT_USER_KEY);
