@@ -9,6 +9,8 @@ import {
   deleteAllHometaxNotices,
   deleteHometaxNotice,
   getHometaxNotices,
+  loginWithPassword,
+  updateLoginPassword,
   getHometaxNoticeById,
   getManualFiles,
   getNotifications,
@@ -30,9 +32,47 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
+  
+    login: publicProcedure
+      .input(
+        z.object({
+          username: z.string(),
+          password: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await loginWithPassword(
+          input.username,
+          input.password
+        );
+      }),
+  
+    changePassword: publicProcedure
+      .input(
+        z.object({
+          username: z.string(),
+          password: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await updateLoginPassword(
+          input.username,
+          input.password
+        );
+  
+        return {
+          success: true,
+        };
+      }),
+  
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+  
+      ctx.res.clearCookie(COOKIE_NAME, {
+        ...cookieOptions,
+        maxAge: -1,
+      });
+  
       return { success: true } as const;
     }),
   }),
