@@ -351,7 +351,7 @@ setNotifOpen(false);
         </div>
       </div>
     {loginOpen && (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4">
+      <div className="fixed left-0 right-0 top-0 bottom-0 z-[9999] grid place-items-center bg-black/40 px-4">
         <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-foreground">로그인</h2>
@@ -402,7 +402,7 @@ setNotifOpen(false);
     )}
 
     {passwordOpen && authUser && (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4">
+      <div className="fixed left-0 right-0 top-0 bottom-0 z-[9999] grid place-items-center bg-black/40 px-4">
         <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl">
           <h2 className="text-lg font-bold text-foreground mb-2">비밀번호 설정</h2>
           <p className="text-sm text-muted-foreground mb-4">
