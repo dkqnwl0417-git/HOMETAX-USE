@@ -15,6 +15,14 @@ import { initDb } from "../db";
 async function startServer() {
   const app = express();
   const server = createServer(app);
+
+  app.get("/health", (_req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: "hometax-use",
+    time: new Date().toISOString(),
+  });
+});
   
   // Configure body parser
   app.use(express.json({ limit: "50mb" }));
