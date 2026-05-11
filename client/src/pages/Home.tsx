@@ -94,7 +94,6 @@ export default function Home() {
             <p className="text-sm font-light text-muted-foreground leading-relaxed">
               PDF, Word, Excel, 한글뿐 아니라 TXT, PPTX, ZIP, RAR, 7Z, EXE, BAT, SH 등
               다양한 파일을 업로드하고 팀 내에서 공유하세요.
-              로그인 없이 누구나 업로드 가능합니다.
             </p>
           </div>
           <div className="bg-card rounded-2xl p-6 border border-border shadow-sm hover:shadow-md transition-shadow">
@@ -133,7 +132,7 @@ export default function Home() {
 
           <div className="flex flex-col gap-1">
             <p className="text-xs text-muted-foreground">
-              홈택스 공지사항을 즉시 수집합니다. 자동 수집은 매일 오전 9시에 실행됩니다.
+              홈택스 공지사항을 즉시 수집합니다. 자동 수집은 매일 오전 9시, 오후 3시에 실행됩니다.
             </p>
             <p className="text-xs text-muted-foreground">
               마지막 수집일시: {lastCrawledAt}
