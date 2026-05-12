@@ -8,9 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { registerCloudinaryUpload } from "../cloudinaryUpload";
-import { runCrawler } from "../crawler";
-import cron from "node-cron";
-import { initDb } from "../db";
+import { initDb, saveLastCrawledAt } from "../db";
 
 async function startServer() {
   const app = express();
@@ -23,6 +21,53 @@ async function startServer() {
     time: new Date().toISOString(),
   });
 });
+
+app.get("/api/cron/hometax-crawl", async (req, res) => {
+  const secret = String(req.query.secret || req.headers["x-cron-secret"] || "");
+
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+    return res.status(401).json({
+      ok: false,
+      message: "Unauthorized",
+    });
+  }
+
+  try {
+    const response = await fetch(process.env.CRAWLER_API_URL!, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-crawler-secret": process.env.CRAWLER_SECRET!,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+
+      return res.status(500).json({
+        ok: false,
+        message: "크롤러 API 호출 실패",
+        status: response.status,
+        error: errorText,
+      });
+    }
+
+    const result = await response.json();
+    const crawledAt = Date.now();
+
+    await saveLastCrawledAt(crawledAt);
+
+    return res.status(200).json({
+      ...result,
+      crawledAt,
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      ok: false,
+      message: err?.message || "자동 수집 실패",
+    });
+  }
+});
   
   // Configure body parser
   app.use(express.json({ limit: "50mb" }));
@@ -34,16 +79,6 @@ async function startServer() {
     
   // DB 초기화
   await initDb().catch(err => console.error("[DB] Init failed:", err));
-  
-  // 크롤링 스케줄러
-  cron.schedule("0 9 * * *", async () => {
-    console.log("[Cron] Running scheduled crawl...");
-    try {
-      await runCrawler(false);
-    } catch (err) {
-      console.error("[Cron] Crawl failed:", err);
-    }
-  });
 
   // tRPC API
   app.use(
