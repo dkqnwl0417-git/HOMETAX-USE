@@ -13,6 +13,13 @@ import {
   Download,
   Trash2,
   FileIcon,
+  FileSpreadsheet,
+  FileType,
+  Presentation,
+  Archive,
+  ImageIcon,
+  FileCode,
+  NotebookText,
   Loader2,
   CheckCircle2,
   AlertCircle,
@@ -74,6 +81,88 @@ function getStatusVariant(status: UploadStatus): "default" | "secondary" | "dest
     default:
       return "secondary";
   }
+}
+
+function getFileVisual(fileType?: string) {
+  const ext = (fileType || "").toLowerCase();
+
+  if (["pdf"].includes(ext)) {
+    return {
+      Icon: FileText,
+      label: "PDF",
+      className: "border-red-200 bg-red-50 text-red-600",
+    };
+  }
+
+  if (["xls", "xlsx", "csv"].includes(ext)) {
+    return {
+      Icon: FileSpreadsheet,
+      label: ext.toUpperCase(),
+      className: "border-emerald-200 bg-emerald-50 text-emerald-600",
+    };
+  }
+
+  if (["doc", "docx"].includes(ext)) {
+    return {
+      Icon: FileType,
+      label: ext.toUpperCase(),
+      className: "border-blue-200 bg-blue-50 text-blue-600",
+    };
+  }
+
+  if (["ppt", "pptx"].includes(ext)) {
+    return {
+      Icon: Presentation,
+      label: ext.toUpperCase(),
+      className: "border-orange-200 bg-orange-50 text-orange-600",
+    };
+  }
+
+  if (["hwp", "hwpx"].includes(ext)) {
+    return {
+      Icon: NotebookText,
+      label: ext.toUpperCase(),
+      className: "border-indigo-200 bg-indigo-50 text-indigo-600",
+    };
+  }
+
+  if (["txt", "log", "md"].includes(ext)) {
+    return {
+      Icon: FileText,
+      label: ext.toUpperCase(),
+      className: "border-slate-200 bg-slate-50 text-slate-600",
+    };
+  }
+
+  if (["zip", "rar", "7z", "alz", "egg"].includes(ext)) {
+    return {
+      Icon: Archive,
+      label: ext.toUpperCase(),
+      className: "border-yellow-200 bg-yellow-50 text-yellow-700",
+    };
+  }
+
+  if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) {
+    return {
+      Icon: ImageIcon,
+      label: ext.toUpperCase(),
+      className: "border-purple-200 bg-purple-50 text-purple-600",
+    };
+  }
+
+  if (["html", "css", "js", "ts", "json", "xml"].includes(ext)) {
+    return {
+      Icon: FileCode,
+      label: ext.toUpperCase(),
+      className: "border-zinc-200 bg-zinc-50 text-zinc-600",
+    };
+  }
+
+  return {
+    Icon: FileIcon,
+    label: ext ? ext.toUpperCase() : "FILE",
+    className: "border-sky-200 bg-sky-50 text-sky-600",
+  };
 }
 
 function uploadFileWithProgress(
@@ -443,12 +532,19 @@ export default function ManualFiles() {
                 <p className="text-muted-foreground">등록된 자료가 없습니다.</p>
               </div>
             ) : (
-              data?.items.map((file: any) => (
-                <Card key={file.id} className="group hover:shadow-md transition-shadow">
-                  <CardContent className="p-4 flex items-center justify-between">
+              data?.items.map((file: any) => {
+                const fileVisual = getFileVisual(file.fileType);
+                const FileVisualIcon = fileVisual.Icon;
+              
+                return (
+                  <Card key={file.id} className="group hover:shadow-md transition-shadow">
+                    <CardContent className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-4 overflow-hidden">
-                      <div className="p-3 bg-muted rounded-lg shrink-0">
-                        <FileIcon className="w-6 h-6 text-primary" />
+                      <div className={`w-12 h-14 shrink-0 rounded-lg border flex flex-col items-center justify-center gap-0.5 ${fileVisual.className}`}>
+                        <FileVisualIcon className="w-5 h-5" />
+                        <span className="text-[9px] font-bold leading-none">
+                          {fileVisual.label}
+                        </span>
                       </div>
                       <div className="overflow-hidden">
                         <h3
@@ -489,7 +585,8 @@ export default function ManualFiles() {
                     </div>
                   </CardContent>
                 </Card>
-              ))
+                );
+              })
             )}
           </div>
         </div>
