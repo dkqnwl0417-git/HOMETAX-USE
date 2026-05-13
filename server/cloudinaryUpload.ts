@@ -103,7 +103,7 @@ export function registerCloudinaryUpload(app: Express) {
     upload.single("file")(req, res, async (uploadErr: any) => {
       if (uploadErr instanceof multer.MulterError) {
         if (uploadErr.code === "LIMIT_FILE_SIZE") {
-          return res.status(400).json({ error: "파일 크기는 최대 100MB까지 업로드할 수 있습니다." });
+          return res.status(400).json({ error: "파일 크기는 최대 50MB까지 업로드할 수 있습니다." });
         }
         return res.status(400).json({ error: uploadErr.message || "업로드 요청 처리에 실패했습니다." });
       }
