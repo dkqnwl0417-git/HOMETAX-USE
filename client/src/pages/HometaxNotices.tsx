@@ -430,20 +430,41 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                     if (Array.isArray(parsed)) {
                       return (
                         <ul className="space-y-1">
-                          {parsed.map((file: any, i: number) => (
-                            <li
-                              key={i}
-                              className="text-sm text-foreground flex items-center gap-2"
-                            >
-                              <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                              <a
-                                href={`/api/download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(file.name)}${file.mimeType ? `&mimeType=${encodeURIComponent(file.mimeType)}` : ""}`}
-                                className="text-primary hover:underline break-all"
+                          {parsed.map((file: any, i: number) => {
+                            const fileName = file.name || file.fileName || "첨부파일";
+                            const fileSize = file.size || "";
+                            const fileUrl = file.url || "";
+                          
+                            return (
+                              <li
+                                key={i}
+                                className="text-sm text-foreground flex items-start gap-2"
                               >
-                                {file.name}
-                              </a>
-                            </li>
-                          ))}
+                                <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+                          
+                                <div className="min-w-0">
+                                  {fileUrl ? (
+                                    <a
+                                      href={`/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(fileName)}${file.mimeType ? `&mimeType=${encodeURIComponent(file.mimeType)}` : ""}`}
+                                      className="text-primary hover:underline break-all"
+                                    >
+                                      {fileName}
+                                    </a>
+                                  ) : (
+                                    <span className="text-foreground break-all">
+                                      {fileName}
+                                    </span>
+                                  )}
+                          
+                                  {fileSize && (
+                                    <span className="ml-2 text-xs text-muted-foreground">
+                                      ({fileSize})
+                                    </span>
+                                  )}
+                                </div>
+                              </li>
+                            );
+                          })}
                         </ul>
                       );
                     }
