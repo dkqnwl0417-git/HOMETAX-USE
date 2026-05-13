@@ -433,7 +433,9 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                           {parsed.map((file: any, i: number) => {
                             const fileName = file.name || file.fileName || "첨부파일";
                             const fileSize = file.size || "";
-                            const fileUrl = file.url || "";
+                            const fileUrl = file.url || file.fileUrl || "";
+                            const mimeType = file.mimeType || "application/octet-stream";
+                            const isSkipped = file.skipped || !fileUrl;
                           
                             return (
                               <li
@@ -443,15 +445,15 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                                 <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
                           
                                 <div className="min-w-0">
-                                  {fileUrl ? (
+                                  {!isSkipped ? (
                                     <a
-                                      href={`/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(fileName)}${file.mimeType ? `&mimeType=${encodeURIComponent(file.mimeType)}` : ""}`}
+                                      href={`/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(fileName)}&mimeType=${encodeURIComponent(mimeType)}`}
                                       className="text-primary hover:underline break-all"
                                     >
                                       {fileName}
                                     </a>
                                   ) : (
-                                    <span className="text-foreground break-all">
+                                    <span className="text-muted-foreground break-all">
                                       {fileName}
                                     </span>
                                   )}
@@ -460,6 +462,12 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                                     <span className="ml-2 text-xs text-muted-foreground">
                                       ({fileSize})
                                     </span>
+                                  )}
+                          
+                                  {isSkipped && file.skipReason && (
+                                    <p className="text-xs text-red-500 mt-0.5">
+                                      {file.skipReason}
+                                    </p>
                                   )}
                                 </div>
                               </li>
