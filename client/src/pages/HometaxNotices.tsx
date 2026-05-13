@@ -802,39 +802,6 @@ export default function HometaxNotices() {
   return true;
 };
 
-  const fetchCrawlStatus = useCallback(async () => {
-    try {
-      const response = await fetch("https://hometax-crawler-api.onrender.com/crawl-status");
-      const result = await response.json();
-  
-      if (result?.ok) {
-        setCrawlStatus(result);
-  
-        if (!result.running && crawlPollingRef.current) {
-          window.clearInterval(crawlPollingRef.current);
-          crawlPollingRef.current = null;
-  
-          refetch();
-          refetchLastCrawl();
-  
-          if (result.finishedAt) {
-            toast.success(result.message || "수집이 완료되었습니다.");
-          }
-        }
-      }
-    } catch (err) {
-      console.error("수집 상태 조회 실패", err);
-    }
-  }, [refetch, refetchLastCrawl]);
-  
-  useEffect(() => {
-    return () => {
-      if (crawlPollingRef.current) {
-        window.clearInterval(crawlPollingRef.current);
-      }
-    };
-  }, []);
-
   useEffect(() => {
   const openNotice = (notice: any) => {
     setSelectedItem(notice);
@@ -882,6 +849,39 @@ export default function HometaxNotices() {
 
   const { data: lastCrawlData, refetch: refetchLastCrawl } =
   trpc.hometax.lastCrawl.useQuery();
+
+  const fetchCrawlStatus = useCallback(async () => {
+  try {
+    const response = await fetch("https://hometax-crawler-api.onrender.com/crawl-status");
+    const result = await response.json();
+
+    if (result?.ok) {
+      setCrawlStatus(result);
+
+      if (!result.running && crawlPollingRef.current) {
+        window.clearInterval(crawlPollingRef.current);
+        crawlPollingRef.current = null;
+
+        refetch();
+        refetchLastCrawl();
+
+        if (result.finishedAt) {
+          toast.success(result.message || "수집이 완료되었습니다.");
+        }
+      }
+    }
+  } catch (err) {
+    console.error("수집 상태 조회 실패", err);
+  }
+}, [refetch, refetchLastCrawl]);
+
+useEffect(() => {
+  return () => {
+    if (crawlPollingRef.current) {
+      window.clearInterval(crawlPollingRef.current);
+    }
+  };
+}, []);
 
   const lastCrawledAt = lastCrawlData?.crawledAt
     ? new Date(lastCrawlData.crawledAt).toLocaleString("ko-KR")
