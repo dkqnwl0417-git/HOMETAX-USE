@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useDropzone, type FileRejection } from "react-dropzone";
 import {
   Eye, Search, RefreshCw, ChevronLeft, ChevronRight, Filter, Trash2, Plus, X, Loader2,
@@ -32,6 +32,18 @@ interface UploadApiResponse {
   fileType: string;
   originalName: string;
   mimeType?: string;
+}
+
+interface CrawlStatus {
+  running: boolean;
+  total: number;
+  current: number;
+  inserted: number;
+  skipped: number;
+  errors: number;
+  message: string;
+  startedAt: number | null;
+  finishedAt: number | null;
 }
 
 function uploadFileWithProgress(file: File): Promise<UploadApiResponse> {
@@ -775,6 +787,8 @@ export default function HometaxNotices() {
   const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [crawlStatus, setCrawlStatus] = useState<CrawlStatus | null>(null);
+  const crawlPollingRef = useRef<number | null>(null);
 
   const ensureLogin = () => {
   const user = getCurrentUser();
@@ -787,6 +801,39 @@ export default function HometaxNotices() {
 
   return true;
 };
+
+  const fetchCrawlStatus = useCallback(async () => {
+    try {
+      const response = await fetch("https://hometax-crawler-api.onrender.com/crawl-status");
+      const result = await response.json();
+  
+      if (result?.ok) {
+        setCrawlStatus(result);
+  
+        if (!result.running && crawlPollingRef.current) {
+          window.clearInterval(crawlPollingRef.current);
+          crawlPollingRef.current = null;
+  
+          refetch();
+          refetchLastCrawl();
+  
+          if (result.finishedAt) {
+            toast.success(result.message || "수집이 완료되었습니다.");
+          }
+        }
+      }
+    } catch (err) {
+      console.error("수집 상태 조회 실패", err);
+    }
+  }, [refetch, refetchLastCrawl]);
+  
+  useEffect(() => {
+    return () => {
+      if (crawlPollingRef.current) {
+        window.clearInterval(crawlPollingRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
   const openNotice = (notice: any) => {
@@ -853,10 +900,18 @@ export default function HometaxNotices() {
   });
 
     const crawlMutation = trpc.hometax.crawl.useMutation({
-      onSuccess: (result) => {
-        toast.success(`수집 완료: 신규 ${result.inserted}건 등록`);
-        refetch();
-        refetchLastCrawl();
+      onSuccess: (result: any) => {
+        toast.success(result?.message || "수집 작업이 시작되었습니다. 저장 완료 후 목록에 표시됩니다.");
+    
+        fetchCrawlStatus();
+    
+        if (crawlPollingRef.current) {
+          window.clearInterval(crawlPollingRef.current);
+        }
+    
+        crawlPollingRef.current = window.setInterval(() => {
+          fetchCrawlStatus();
+        }, 3000);
       },
       onError: (err) => toast.error("수집 실패: " + err.message),
     });
@@ -912,10 +967,19 @@ export default function HometaxNotices() {
         variant="outline"
         className="gap-2 bg-card shadow-sm"
         onClick={() => { if (ensureLogin()) crawlMutation.mutate(); }}
-        disabled={crawlMutation.isPending}
+        disabled={crawlMutation.isPending || crawlStatus?.running}
       >
-        <RefreshCw className={cn("w-4 h-4", crawlMutation.isPending && "animate-spin")} />
-        {crawlMutation.isPending ? "수집 중..." : "지금 수집"}
+        <RefreshCw
+          className={cn(
+            "w-4 h-4",
+            (crawlMutation.isPending || crawlStatus?.running) && "animate-spin"
+          )}
+        />
+        {crawlStatus?.running
+          ? `수집중... (${crawlStatus.current} / ${crawlStatus.total || "?"})`
+          : crawlMutation.isPending
+            ? "수집 시작 중..."
+            : "지금 수집"}
       </Button>
 
       <Button
@@ -935,6 +999,16 @@ export default function HometaxNotices() {
     <p className="text-xs text-muted-foreground">
       마지막 수집일시: {lastCrawledAt}
     </p>
+    {crawlStatus && (
+      <p
+        className={cn(
+          "text-xs font-medium",
+          crawlStatus.running ? "text-primary" : "text-muted-foreground"
+        )}
+      >
+        {crawlStatus.message}
+      </p>
+    )}
   </div>
 </div>
 
