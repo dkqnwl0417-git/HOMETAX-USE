@@ -582,12 +582,10 @@ export default function ManualFiles() {
                       </Button>
                       <Button
                         variant="outline"
-                        size="sm"
-                        className="gap-2"
+                        size="icon"
                         onClick={() => handleDownload(file.fileUrl, `${file.title}.${file.fileType}`, file.mimeType || "application/octet-stream")}
                       >
                         <Download className="w-4 h-4" />
-                        다운로드
                       </Button>
                     </div>
                   </CardContent>
