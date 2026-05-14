@@ -54,10 +54,11 @@ function ProtectedPage({ children }: { children: React.ReactNode }) {
 
 function Router() {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <NavBar />
-
-      <main className="flex-1">
+    <div className="min-h-screen bg-background overflow-x-auto">
+      <div className="min-w-[1200px] min-h-screen flex flex-col">
+        <NavBar />
+  
+        <main className="flex-1">
         <Switch>
           <Route path="/" component={Home} />
 
@@ -84,7 +85,8 @@ function Router() {
         </Switch>
       </main>
     </div>
-  );
+  </div>   
+);
 }
 
 function App() {
