@@ -878,7 +878,7 @@ export default function HometaxNotices() {
 
   const fetchCrawlStatus = useCallback(async () => {
   try {
-    const response = await fetch("https://hometax-crawler-api.onrender.com/crawl-status");
+    const response = await fetch("/api/crawl-status");
     const result = await response.json();
 
     if (result?.ok) {
