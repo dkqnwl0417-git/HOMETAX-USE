@@ -1094,7 +1094,7 @@ useEffect(() => {
                   <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-28 hidden sm:table-cell">세금 유형</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-36 hidden md:table-cell">문서 유형</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-32 whitespace-nowrap hidden lg:table-cell">등록일</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-muted-foreground uppercase tracking-wider w-20">조회수</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-20">조회수</th>
                   <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-16">관리</th>
                 </tr>
               </thead>
@@ -1123,9 +1123,10 @@ useEffect(() => {
                     <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap hidden lg:table-cell">
                       {item.date}
                     </td>
-                    <td className="px-4 py-4 text-right">
-                      <div className="flex items-center justify-end gap-1 text-xs text-muted-foreground">
-                        <Eye className="w-3 h-3" />{item.viewCount.toLocaleString()}
+                    <td className="px-4 py-4">
+                      <div className="inline-grid grid-cols-[14px_1fr] items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
+                        <Eye className="w-3 h-3" />
+                        <span className="tabular-nums">{item.viewCount.toLocaleString()}</span>
                       </div>
                     </td>
                     <td className="px-4 py-4 text-center">
