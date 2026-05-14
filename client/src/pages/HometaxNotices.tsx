@@ -989,7 +989,8 @@ useEffect(() => {
   };
 
   return (
-    <div className="container py-10 max-w-6xl mx-auto px-4">
+    <div className="min-w-[1200px]">
+      <div className="container py-10 max-w-6xl mx-auto px-4">
       {/* 모달 */}
       {showCreateModal && (
         <CreateModal onClose={() => setShowCreateModal(false)} onCreated={refetch} />
@@ -1272,5 +1273,6 @@ useEffect(() => {
         </div>
       )}
     </div>
+  </div>    
   );
 }
