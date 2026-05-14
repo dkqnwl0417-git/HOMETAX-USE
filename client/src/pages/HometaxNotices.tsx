@@ -1064,9 +1064,14 @@ useEffect(() => {
             )}
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            마지막 수집일시: {lastCrawledAt}
-          </p>
+          <div className="text-xs text-muted-foreground text-right leading-relaxed">
+            <p>
+              홈택스 공지사항을 자동 수집합니다. 자동 수집은 매일 오전 9시, 오후 3시에 실행됩니다.
+            </p>
+            <p>
+              마지막 수집일시: {lastCrawledAt}
+            </p>
+          </div>
 
           {crawlStatus && (
             <p
