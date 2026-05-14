@@ -312,7 +312,7 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
           </div>
 
           {/* 세금유형 / 문서유형 / 날짜 */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-3 rounded-lg bg-muted/30 border border-border p-4">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground">세금 유형</label>
               {isEditing ? (
@@ -327,10 +327,12 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                   </SelectContent>
                 </Select>
               ) : (
-                <TaxBadge type={item.taxType} />
+                <div>
+                  <TaxBadge type={item.taxType} />
+                </div>
               )}
             </div>
-
+          
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground">문서 유형</label>
               {isEditing ? (
@@ -345,10 +347,12 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                   </SelectContent>
                 </Select>
               ) : (
-                <DocBadge type={item.docType} />
+                <div>
+                  <DocBadge type={item.docType} />
+                </div>
               )}
             </div>
-
+          
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-muted-foreground">공지 날짜</label>
               {isEditing ? (
@@ -359,7 +363,9 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                   className="h-9 text-sm bg-background"
                 />
               ) : (
-                <p className="text-sm text-foreground">{item.date}</p>
+                <p className="text-sm font-semibold text-foreground whitespace-nowrap">
+                  {item.date}
+                </p>
               )}
             </div>
           </div>
