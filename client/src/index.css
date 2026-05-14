@@ -424,3 +424,16 @@ html[class*="theme-"] {
     overflow-x: auto;
   }
 }
+
+/* ─── PC layout fixed minimum width ─────────────────────────────────────── */
+html,
+body,
+#root {
+  min-width: 1200px;
+  overflow-x: auto;
+}
+
+body {
+  width: 100%;
+}
+
