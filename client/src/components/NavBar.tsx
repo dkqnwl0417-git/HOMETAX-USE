@@ -8,6 +8,7 @@ import {
   login,
   logout,
   updatePassword,
+  updatePasswordWithCurrent,
   getUserTheme,
   saveUserTheme,
   THEME_OPTIONS,
@@ -31,6 +32,9 @@ export default function NavBar() {
   const [loginId, setLoginId] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordAccordionOpen, setPasswordAccordionOpen] = useState(false);
   const [loginError, setLoginError] = useState("");
 
   const { data: unreadData, refetch: refetchUnread } =
@@ -133,23 +137,50 @@ export default function NavBar() {
     saveUserTheme(theme, authUser?.username);
   };
 
-  const handlePasswordSave = async () => {
-  if (!authUser) return;
+  const showTemporaryError = (message: string) => {
+    setLoginError(message);
 
-  const result = await updatePassword(
-    authUser.username,
-    newPassword
-  );
+    window.setTimeout(() => {
+      setLoginError("");
+    }, 3000);
+  };
 
-  if (!result.success) {
-    setLoginError("비밀번호 저장 실패");
-    return;
-  }
+  const handleInitialPasswordSave = async () => {
+    if (!authUser) return;
 
-  setPasswordOpen(false);
-  setNewPassword("");
-  setLoginError("");
-};
+    const result = await updatePassword(authUser.username, newPassword);
+
+    if (!result.success) {
+      showTemporaryError("비밀번호 저장 실패");
+      return;
+    }
+
+    setPasswordOpen(false);
+    setNewPassword("");
+    setLoginError("");
+  };
+
+  const handleSettingsPasswordSave = async () => {
+    if (!authUser) return;
+
+    const result = await updatePasswordWithCurrent(
+      authUser.username,
+      currentPassword,
+      newPassword,
+      confirmPassword
+    );
+
+    if (!result.success) {
+      showTemporaryError(result.message || "비밀번호 저장 실패");
+      return;
+    }
+
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordAccordionOpen(false);
+    setLoginError("");
+  };
 
   const handleLogout = () => {
     logout();
@@ -458,26 +489,55 @@ export default function NavBar() {
             </div>
 
             <div className="space-y-5">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground">
-                  비밀번호 변경
-                </label>
-
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder="새 비밀번호 입력"
-                />
-
-                <Button
-                  size="sm"
-                  onClick={handlePasswordSave}
-                  className="w-full"
+              <div className="rounded-lg border border-border bg-background">
+                <button
+                  type="button"
+                  onClick={() => setPasswordAccordionOpen((prev) => !prev)}
+                  className="w-full flex items-center justify-between px-3 py-3 text-left"
                 >
-                  비밀번호 저장
-                </Button>
+                  <span className="text-sm font-semibold text-foreground">
+                    비밀번호 변경
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {passwordAccordionOpen ? "접기" : "펼치기"}
+                  </span>
+                </button>
+
+                {passwordAccordionOpen && (
+                  <div className="space-y-3 border-t border-border p-3">
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="현재 비밀번호"
+                    />
+
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="새 비밀번호"
+                    />
+
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="새 비밀번호 확인"
+                    />
+
+                    <Button
+                      size="sm"
+                      onClick={handleSettingsPasswordSave}
+                      className="w-full"
+                    >
+                      비밀번호 저장
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -550,7 +610,7 @@ export default function NavBar() {
               <Button variant="outline" onClick={() => setPasswordOpen(false)}>
                 나중에
               </Button>
-              <Button onClick={handlePasswordSave}>저장</Button>
+              <Button onClick={handleInitialPasswordSave}>저장</Button>
             </div>
           </div>
         </div>
