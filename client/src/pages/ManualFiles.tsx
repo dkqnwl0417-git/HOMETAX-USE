@@ -403,8 +403,15 @@ export default function ManualFiles() {
     <div className="container mx-auto py-8 px-4 max-w-5xl">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">내부 메뉴얼 자료실</h1>
-          <p className="text-muted-foreground mt-1">업무에 필요한 메뉴얼, 문서, 압축파일, 실행파일을 공유합니다.</p>
+          <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-1">
+            AICC
+          </p>
+          <h1 className="text-3xl font-extrabold text-foreground tracking-tight">
+            내부 메뉴얼 자료실
+          </h1>
+          <p className="text-[15px] font-medium text-foreground/75 leading-7 mt-2">
+            업무에 필요한 메뉴얼, 문서, 압축파일, 실행파일을 공유합니다.
+          </p>
         </div>
       </div>
 
