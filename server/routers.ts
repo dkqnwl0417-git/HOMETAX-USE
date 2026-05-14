@@ -11,6 +11,7 @@ import {
   getHometaxNotices,
   loginWithPassword,
   updateLoginPassword,
+  updateLoginPasswordWithCurrent,
   getLoginUsers,
   createLoginUser,
   deleteLoginUser,
@@ -67,6 +68,22 @@ export const appRouter = router({
         return {
           success: true,
         };
+      }),
+
+    changePasswordWithCurrent: publicProcedure
+      .input(
+        z.object({
+          username: z.string(),
+          currentPassword: z.string(),
+          newPassword: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        return await updateLoginPasswordWithCurrent(
+          input.username,
+          input.currentPassword,
+          input.newPassword
+        );
       }),
 
 users: publicProcedure.query(async () => {
