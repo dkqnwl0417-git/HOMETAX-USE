@@ -261,6 +261,53 @@ export async function loginWithPassword(username: string, password: string) {
   };
 }
 
+export async function updateLoginPasswordWithCurrent(
+  username: string,
+  currentPassword: string,
+  newPassword: string
+) {
+  const db = await getDb();
+
+  const user = await db.query.loginUsers.findFirst({
+    where: eq(schema.loginUsers.username, username),
+  });
+
+  if (!user) {
+    return {
+      success: false,
+      message: "사용자 정보를 찾을 수 없습니다.",
+    };
+  }
+
+  if (user.password !== currentPassword) {
+    return {
+      success: false,
+      message: "현재 비밀번호가 일치하지 않습니다.",
+    };
+  }
+
+  if (!newPassword.trim()) {
+    return {
+      success: false,
+      message: "새 비밀번호를 입력해주세요.",
+    };
+  }
+
+  await db
+    .update(schema.loginUsers)
+    .set({
+      password: newPassword.trim(),
+      passwordSetupDone: 1,
+      updatedAt: new Date().getTime(),
+    })
+    .where(eq(schema.loginUsers.username, username));
+
+  return {
+    success: true,
+    message: "비밀번호가 변경되었습니다.",
+  };
+}
+
 export async function updateLoginPassword(username: string, password: string) {
   const db = await getDb();
 
