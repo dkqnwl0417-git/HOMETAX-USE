@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Bell, FileText, BookOpen, Home, X, Trash2, LogIn, LogOut, Users } from "lucide-react";
+import { Bell, FileText, BookOpen, Home, X, Trash2, LogIn, LogOut, Users, Settings } from "lucide-react";
 import {
   AUTH_CHANGED_EVENT,
   OPEN_LOGIN_EVENT,
@@ -8,7 +8,11 @@ import {
   login,
   logout,
   updatePassword,
+  getUserTheme,
+  saveUserTheme,
+  THEME_OPTIONS,
   type AppUser,
+  type AppTheme,
 } from "@/lib/simpleAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -22,6 +26,8 @@ export default function NavBar() {
   const [authUser, setAuthUser] = useState<AppUser | null>(() => getCurrentUser());
   const [loginOpen, setLoginOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [selectedTheme, setSelectedTheme] = useState<AppTheme>(() => getUserTheme());
   const [loginId, setLoginId] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -122,6 +128,11 @@ export default function NavBar() {
   }
 };
 
+  const handleThemeChange = (theme: AppTheme) => {
+    setSelectedTheme(theme);
+    saveUserTheme(theme, authUser?.username);
+  };
+
   const handlePasswordSave = async () => {
   if (!authUser) return;
 
@@ -217,9 +228,22 @@ export default function NavBar() {
             <div className="flex items-center justify-end gap-2 min-w-[150px]">
               {authUser ? (
                 <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTheme(getUserTheme(authUser.username));
+                      setSettingsOpen(true);
+                    }}
+                    className="w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    title="개인 설정"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+            
                   <span className="hidden sm:inline text-sm font-medium text-foreground">
                     {authUser.username}님
                   </span>
+            
                   <button
                     type="button"
                     onClick={handleLogout}
@@ -408,6 +432,93 @@ export default function NavBar() {
               <Button className="w-full" onClick={handleLoginSubmit}>
                 로그인
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+            {settingsOpen && authUser && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <div className="relative w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-foreground">개인 설정</h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {authUser.username}님 전용 설정입니다.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(false)}
+                className="p-1 rounded-md hover:bg-muted"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">
+                  비밀번호 변경
+                </label>
+
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  placeholder="새 비밀번호 입력"
+                />
+
+                <Button
+                  size="sm"
+                  onClick={handlePasswordSave}
+                  className="w-full"
+                >
+                  비밀번호 저장
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">
+                  화면 테마
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {THEME_OPTIONS.map((theme) => (
+                    <button
+                      key={theme.value}
+                      type="button"
+                      onClick={() => handleThemeChange(theme.value)}
+                      className={cn(
+                        "text-left rounded-lg border p-3 transition-colors hover:bg-muted",
+                        selectedTheme === theme.value
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-background"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-foreground">
+                          {theme.label}
+                        </span>
+                        {selectedTheme === theme.value && (
+                          <span className="text-[10px] font-bold text-primary">
+                            선택됨
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {theme.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {loginError && (
+                <p className="text-xs text-destructive">{loginError}</p>
+              )}
             </div>
           </div>
         </div>
