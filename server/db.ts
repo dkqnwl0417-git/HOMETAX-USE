@@ -451,9 +451,20 @@ export async function getHometaxNotices(filters: any) {
   }
 
   if (filters.keyword) {
-    conditions.push(
-      like(schema.hometaxNotices.title, `%${filters.keyword}%`)
-    );
+    const keywords = String(filters.keyword)
+      .split(",")
+      .map((word) => word.trim())
+      .filter(Boolean);
+  
+    if (keywords.length > 0) {
+      conditions.push(
+        and(
+          ...keywords.map((word) =>
+            like(schema.hometaxNotices.title, `%${word}%`)
+          )
+        )
+      );
+    }
   }
 
   const items = await db.query.hometaxNotices.findMany({
