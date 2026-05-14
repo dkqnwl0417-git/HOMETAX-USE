@@ -1003,7 +1003,7 @@ useEffect(() => {
       )}
 
       {/* 헤더 */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div className="mb-8 flex items-end justify-between gap-4 min-w-[1100px]">
         <div>
           <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-1">Hometax</p>
           <h1 className="text-3xl font-extrabold text-foreground tracking-tight">전자신고 설명서</h1>
@@ -1087,7 +1087,7 @@ useEffect(() => {
           <Filter className="w-4 h-4 text-primary" />
           <span className="text-sm font-bold text-foreground">상세 필터</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-5 gap-4 min-w-[1100px]">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground">시작일</label>
             <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} className="h-9 text-sm bg-background border-muted-foreground/20" />
@@ -1153,7 +1153,7 @@ useEffect(() => {
             <p className="text-sm text-muted-foreground mt-1">필터를 변경하거나 수기 등록 버튼을 눌러보세요.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto min-w-[1100px]">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-muted/30 border-b border-border">
