@@ -31,6 +31,7 @@ const LAST_ACTIVITY_KEY = "hometax-last-activity";
 const SESSION_LIMIT_MS = 3 * 60 * 60 * 1000;
 const USER_THEME_PREFIX = "hometax-user-theme-";
 const THEME_CLASS_PREFIX = "theme-";
+const USER_THEME_INTENSITY_PREFIX = "hometax-user-theme-intensity-";
 
 export const AUTH_CHANGED_EVENT = "hometax-auth-changed";
 export const OPEN_LOGIN_EVENT = "hometax-open-login";
@@ -41,6 +42,54 @@ function emitAuthChanged() {
 
 function getThemeKey(username: string) {
   return `${USER_THEME_PREFIX}${username}`;
+}
+
+function getThemeIntensityKey(username: string) {
+  return `${USER_THEME_INTENSITY_PREFIX}${username}`;
+}
+
+export function getUserThemeIntensity(username?: string): number {
+  const targetUsername = username || getCurrentUser()?.username;
+
+  if (!targetUsername) {
+    return 100;
+  }
+
+  const savedIntensity = Number(
+    localStorage.getItem(getThemeIntensityKey(targetUsername)) || "100"
+  );
+
+  if (Number.isNaN(savedIntensity)) {
+    return 100;
+  }
+
+  return Math.min(130, Math.max(70, savedIntensity));
+}
+
+export function applyThemeIntensity(intensity: number) {
+  const safeIntensity = Math.min(130, Math.max(70, intensity));
+  document.documentElement.style.setProperty(
+    "--theme-intensity",
+    String(safeIntensity / 100)
+  );
+}
+
+export function saveUserThemeIntensity(intensity: number, username?: string) {
+  const targetUsername = username || getCurrentUser()?.username;
+
+  if (!targetUsername) {
+    return;
+  }
+
+  const safeIntensity = Math.min(130, Math.max(70, intensity));
+
+  localStorage.setItem(
+    getThemeIntensityKey(targetUsername),
+    String(safeIntensity)
+  );
+
+  applyThemeIntensity(safeIntensity);
+  emitAuthChanged();
 }
 
 export function getUserTheme(username?: string): AppTheme {
@@ -59,12 +108,13 @@ export function getUserTheme(username?: string): AppTheme {
   return "blue";
 }
 
-export function applyTheme(theme: AppTheme) {
+export function applyTheme(theme: AppTheme, intensity = 100) {
   document.documentElement.classList.remove(
     ...THEME_OPTIONS.map((item) => `${THEME_CLASS_PREFIX}${item.value}`)
   );
 
   document.documentElement.classList.add(`${THEME_CLASS_PREFIX}${theme}`);
+  applyThemeIntensity(intensity);
 }
 
 export function saveUserTheme(theme: AppTheme, username?: string) {
@@ -75,15 +125,16 @@ export function saveUserTheme(theme: AppTheme, username?: string) {
   }
 
   localStorage.setItem(getThemeKey(targetUsername), theme);
-  applyTheme(theme);
+  applyTheme(theme, getUserThemeIntensity(targetUsername));
   emitAuthChanged();
 }
 
 export function applyCurrentUserTheme() {
   const user = getCurrentUser();
   const theme = getUserTheme(user?.username);
-
-  applyTheme(theme);
+  const intensity = getUserThemeIntensity(user?.username);
+  
+  applyTheme(theme, intensity);
 }
 
 export function getCurrentUser(): AppUser | null {
@@ -136,7 +187,10 @@ export async function login(username: string, password: string) {
     JSON.stringify(data.user)
   );
 
-  applyTheme(getUserTheme(data.user.username));
+  applyTheme(
+    getUserTheme(data.user.username),
+    getUserThemeIntensity(data.user.username)
+  );
 
   touchActivity();
   emitAuthChanged();
@@ -238,7 +292,7 @@ export async function updatePasswordWithCurrent(
 export function logout() {
   sessionStorage.removeItem(CURRENT_USER_KEY);
   localStorage.removeItem(LAST_ACTIVITY_KEY);
-  applyTheme("blue");
+  applyTheme("blue", 100);
   emitAuthChanged();
 }
 
