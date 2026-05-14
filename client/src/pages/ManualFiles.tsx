@@ -401,7 +401,7 @@ export default function ManualFiles() {
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-5xl">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <div className="flex flex-row justify-between items-center mb-8 gap-4">
         <div>
           <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-1">
             AICC
@@ -415,8 +415,8 @@ export default function ManualFiles() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-1 space-y-4">
+      <div className="grid grid-cols-3 gap-8">
+        <div className="col-span-1 space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -517,7 +517,7 @@ export default function ManualFiles() {
           </Card>
         </div>
 
-        <div className="lg:col-span-2 space-y-4">
+        <div className="col-span-2 space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
