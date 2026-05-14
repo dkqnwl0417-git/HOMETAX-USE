@@ -81,7 +81,7 @@ export function saveUserThemeIntensity(intensity: number, username?: string) {
     return;
   }
 
-  const safeIntensity = Math.min(130, Math.max(70, intensity));
+  const safeIntensity = Math.min(150, Math.max(70, intensity));
 
   localStorage.setItem(
     getThemeIntensityKey(targetUsername),
