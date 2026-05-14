@@ -1172,19 +1172,19 @@ useEffect(() => {
                     제목
                   </th>
 
-                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-20 hidden sm:table-cell">
+                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-20">
                     구분
                   </th>
-
-                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-28 hidden sm:table-cell">
+                  
+                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-28">
                     세금 유형
                   </th>
-
-                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-36 hidden md:table-cell">
+                  
+                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-36">
                     문서 유형
                   </th>
-
-                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-32 whitespace-nowrap hidden lg:table-cell">
+                  
+                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-32 whitespace-nowrap">
                     등록일
                   </th>
 
@@ -1210,18 +1210,20 @@ useEffect(() => {
                       >
                         <span className="line-clamp-2">{item.title}</span>
                       </button>
-                      <div className="flex items-center gap-2 mt-1.5 sm:hidden">
-                        <SourceBadge sourceType={item.sourceType} />
-                        <TaxBadge type={item.taxType} />
-                        <DocBadge type={item.docType} />
-                      </div>
                     </td>
-                    <td className="px-4 py-4 text-center hidden sm:table-cell">
+                    <td className="px-4 py-4 text-center">
                       <SourceBadge sourceType={item.sourceType} />
                     </td>
-                    <td className="px-4 py-4 text-center hidden sm:table-cell"><TaxBadge type={item.taxType} /></td>
-                    <td className="px-4 py-4 text-center hidden md:table-cell"><DocBadge type={item.docType} /></td>
-                    <td className="px-4 py-4 text-center text-sm text-muted-foreground whitespace-nowrap hidden lg:table-cell">
+                    
+                    <td className="px-4 py-4 text-center">
+                      <TaxBadge type={item.taxType} />
+                    </td>
+                    
+                    <td className="px-4 py-4 text-center">
+                      <DocBadge type={item.docType} />
+                    </td>
+                    
+                    <td className="px-4 py-4 text-center text-sm text-muted-foreground whitespace-nowrap">
                       {item.date}
                     </td>
                     <td className="px-4 py-4 text-center">
