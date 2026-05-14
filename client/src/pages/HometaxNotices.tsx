@@ -928,9 +928,23 @@ useEffect(() => {
     const crawlMutation = trpc.hometax.crawl.useMutation({
       onSuccess: (result: any) => {
         toast.success(result?.message || "수집 작업이 시작되었습니다. 저장 완료 후 목록에 표시됩니다.");
-    
+      
+        setCrawlStatus(
+          result?.status || {
+            running: true,
+            total: 0,
+            current: 0,
+            inserted: 0,
+            skipped: 0,
+            errors: 0,
+            message: "수집 상태를 확인하는 중입니다...",
+            startedAt: Date.now(),
+            finishedAt: null,
+          }
+        );
+      
         fetchCrawlStatus();
-    
+          
         if (crawlPollingRef.current) {
           window.clearInterval(crawlPollingRef.current);
         }
