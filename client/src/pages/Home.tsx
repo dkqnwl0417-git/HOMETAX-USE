@@ -50,9 +50,11 @@ export default function Home() {
             <br />
             <span className="text-primary">전자신고</span> 설명서
           </h1>
-          <p className="text-base md:text-lg font-light text-muted-foreground leading-relaxed mb-8 max-w-lg">
-            국세청 홈택스 공지사항에서 전자신고 파일설명서와 전산매체 제출요령을 자동으로
-            수집하여 제공합니다. 내부 메뉴얼 자료도 손쉽게 관리하세요.
+          <p className="text-[15px] md:text-lg font-medium text-foreground/80 leading-8 mb-8 max-w-xl">
+            국세청 홈택스 공지사항에서 전자신고 파일설명서와
+            전산매체 제출요령을 자동으로 수집하여 제공합니다.
+            <br />
+            내부 메뉴얼 자료도 손쉽게 관리할 수 있습니다.
           </p>
           <div className="space-y-3">
             <div className="flex flex-wrap gap-3">
