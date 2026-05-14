@@ -186,6 +186,55 @@ export async function updatePassword(
   };
 }
 
+export async function updatePasswordWithCurrent(
+  username: string,
+  currentPassword: string,
+  newPassword: string,
+  confirmPassword: string
+) {
+  const current = currentPassword.trim();
+  const password = newPassword.trim();
+  const confirm = confirmPassword.trim();
+
+  if (!current) {
+    return { success: false, message: "현재 비밀번호를 입력해주세요." };
+  }
+
+  if (!password) {
+    return { success: false, message: "새 비밀번호를 입력해주세요." };
+  }
+
+  if (password !== confirm) {
+    return { success: false, message: "새 비밀번호와 비밀번호 확인이 일치하지 않습니다." };
+  }
+
+  const response = await fetch("/api/trpc/auth.changePasswordWithCurrent", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      json: {
+        username,
+        currentPassword: current,
+        newPassword: password,
+      },
+    }),
+  });
+
+  const result = await response.json();
+
+  const data =
+    result?.result?.data?.json ||
+    result?.result?.data ||
+    result;
+
+  return {
+    success: !!data?.success,
+    message: data?.message || "비밀번호 변경에 실패했습니다.",
+  };
+}
+
 export function logout() {
   sessionStorage.removeItem(CURRENT_USER_KEY);
   localStorage.removeItem(LAST_ACTIVITY_KEY);
