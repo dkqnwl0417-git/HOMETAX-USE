@@ -3,15 +3,87 @@ export type AppUser = {
   role?: "admin" | "user";
 };
 
+export type AppTheme =
+  | "blue"
+  | "navy"
+  | "green"
+  | "mint"
+  | "sky"
+  | "lavender"
+  | "beige"
+  | "coral"
+  | "pink";
+
+export const THEME_OPTIONS: { value: AppTheme; label: string; description: string }[] = [
+  { value: "blue", label: "기본 블루", description: "깔끔하고 무난한 기본 업무용 테마" },
+  { value: "navy", label: "네이비", description: "차분하고 전문적인 문서관리 느낌" },
+  { value: "green", label: "그린", description: "편안하고 안정적인 느낌" },
+  { value: "mint", label: "민트", description: "밝고 부드러운 업무 화면" },
+  { value: "sky", label: "스카이", description: "시원하고 가벼운 느낌" },
+  { value: "lavender", label: "라벤더", description: "부드럽고 차분한 보라 계열" },
+  { value: "beige", label: "베이지", description: "따뜻하고 눈이 편한 색감" },
+  { value: "coral", label: "코랄", description: "밝고 산뜻한 포인트 테마" },
+  { value: "pink", label: "핑크", description: "부드럽고 화사한 색감" },
+];
+
 const CURRENT_USER_KEY = "hometax-current-user";
 const LAST_ACTIVITY_KEY = "hometax-last-activity";
 const SESSION_LIMIT_MS = 3 * 60 * 60 * 1000;
+const USER_THEME_PREFIX = "hometax-user-theme-";
+const THEME_CLASS_PREFIX = "theme-";
 
 export const AUTH_CHANGED_EVENT = "hometax-auth-changed";
 export const OPEN_LOGIN_EVENT = "hometax-open-login";
 
 function emitAuthChanged() {
   window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+}
+
+function getThemeKey(username: string) {
+  return `${USER_THEME_PREFIX}${username}`;
+}
+
+export function getUserTheme(username?: string): AppTheme {
+  const targetUsername = username || getCurrentUser()?.username;
+
+  if (!targetUsername) {
+    return "blue";
+  }
+
+  const savedTheme = localStorage.getItem(getThemeKey(targetUsername)) as AppTheme | null;
+
+  if (savedTheme && THEME_OPTIONS.some((theme) => theme.value === savedTheme)) {
+    return savedTheme;
+  }
+
+  return "blue";
+}
+
+export function applyTheme(theme: AppTheme) {
+  document.documentElement.classList.remove(
+    ...THEME_OPTIONS.map((item) => `${THEME_CLASS_PREFIX}${item.value}`)
+  );
+
+  document.documentElement.classList.add(`${THEME_CLASS_PREFIX}${theme}`);
+}
+
+export function saveUserTheme(theme: AppTheme, username?: string) {
+  const targetUsername = username || getCurrentUser()?.username;
+
+  if (!targetUsername) {
+    return;
+  }
+
+  localStorage.setItem(getThemeKey(targetUsername), theme);
+  applyTheme(theme);
+  emitAuthChanged();
+}
+
+export function applyCurrentUserTheme() {
+  const user = getCurrentUser();
+  const theme = getUserTheme(user?.username);
+
+  applyTheme(theme);
 }
 
 export function getCurrentUser(): AppUser | null {
@@ -64,6 +136,8 @@ export async function login(username: string, password: string) {
     JSON.stringify(data.user)
   );
 
+  applyTheme(getUserTheme(data.user.username));
+
   touchActivity();
   emitAuthChanged();
 
@@ -115,6 +189,7 @@ export async function updatePassword(
 export function logout() {
   sessionStorage.removeItem(CURRENT_USER_KEY);
   localStorage.removeItem(LAST_ACTIVITY_KEY);
+  applyTheme("blue");
   emitAuthChanged();
 }
 
