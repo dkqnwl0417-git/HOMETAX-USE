@@ -179,7 +179,12 @@ export default function NavBar() {
     setNewPassword("");
     setConfirmPassword("");
     setPasswordAccordionOpen(false);
-    setLoginError("");
+
+    setLoginError("비밀번호가 변경되었습니다.");
+
+    window.setTimeout(() => {
+      setLoginError("");
+    }, 3000);
   };
 
   const handleLogout = () => {
