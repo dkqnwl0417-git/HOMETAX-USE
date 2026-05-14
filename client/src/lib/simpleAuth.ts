@@ -63,11 +63,11 @@ export function getUserThemeIntensity(username?: string): number {
     return 100;
   }
 
-  return Math.min(130, Math.max(70, savedIntensity));
+  return Math.min(150, Math.max(70, savedIntensity));
 }
 
 export function applyThemeIntensity(intensity: number) {
-  const safeIntensity = Math.min(130, Math.max(70, intensity));
+  const safeIntensity = Math.min(150, Math.max(70, intensity));
   document.documentElement.style.setProperty(
     "--theme-intensity",
     String(safeIntensity / 100)
