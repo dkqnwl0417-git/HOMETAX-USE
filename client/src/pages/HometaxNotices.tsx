@@ -1121,7 +1121,7 @@ useEffect(() => {
       setKeyword(e.target.value);
       setPage(1);
     }}
-    placeholder="제목 검색"
+    placeholder="제목 검색 예: 부가,설명"
     className="h-9 text-sm bg-background border-muted-foreground/20"
   />
 </div>
