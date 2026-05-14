@@ -561,7 +561,7 @@ export default function NavBar() {
                 <div className="rounded-lg border border-border bg-background p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-semibold text-foreground">
-                      색감 농도
+                      색감
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {themeIntensity}%
@@ -571,7 +571,7 @@ export default function NavBar() {
                   <input
                     type="range"
                     min="70"
-                    max="130"
+                    max="150"
                     step="5"
                     value={themeIntensity}
                     onChange={(e) =>
