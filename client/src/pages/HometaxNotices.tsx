@@ -143,6 +143,20 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
   const [isEditUploadingFile, setIsEditUploadingFile] = useState(false);
   const [editUrl, setEditUrl] = useState(item.url || "");
 
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+  
+    window.addEventListener("keydown", handleEsc);
+  
+    return () => {
+      window.removeEventListener("keydown", handleEsc);
+    };
+  }, [onClose]);
+
   const onEditDropRejected = useCallback((fileRejections: FileRejection[]) => {
     if (fileRejections.length === 0) return;
     toast.error("업로드할 수 없는 파일입니다. 파일 용량 또는 확장자를 확인해주세요.");
@@ -220,8 +234,14 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-background rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-background rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* 모달 헤더 */}
         <div className="flex items-center justify-between p-5 border-b border-border">
           <h2 className="font-bold text-lg text-foreground flex items-center gap-2">
