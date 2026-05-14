@@ -1200,7 +1200,7 @@ useEffect(() => {
               <tbody>
                 {data.items.map((item, idx) => (
                   <tr key={item.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors group">
-                    <td className="px-4 py-4 text-xs text-muted-foreground">{(page - 1) * PAGE_SIZE + idx + 1}</td>
+                    <td className="px-4 py-4 text-center text-xs text-muted-foreground">{(page - 1) * PAGE_SIZE + idx + 1}</td>
                     <td className="px-4 py-4">
                       <button
                         onClick={() => handleTitleClick(item)}
@@ -1214,15 +1214,15 @@ useEffect(() => {
                         <DocBadge type={item.docType} />
                       </div>
                     </td>
-                    <td className="px-4 py-4 hidden sm:table-cell">
-  <SourceBadge sourceType={item.sourceType} />
-</td>
-                    <td className="px-4 py-4 hidden sm:table-cell"><TaxBadge type={item.taxType} /></td>
-                    <td className="px-4 py-4 hidden md:table-cell"><DocBadge type={item.docType} /></td>
-                    <td className="px-4 py-4 text-sm text-muted-foreground whitespace-nowrap hidden lg:table-cell">
+                    <td className="px-4 py-4 text-center hidden sm:table-cell">
+                      <SourceBadge sourceType={item.sourceType} />
+                    </td>
+                    <td className="px-4 py-4 text-center hidden sm:table-cell"><TaxBadge type={item.taxType} /></td>
+                    <td className="px-4 py-4 text-center hidden md:table-cell"><DocBadge type={item.docType} /></td>
+                    <td className="px-4 py-4 text-center text-sm text-muted-foreground whitespace-nowrap hidden lg:table-cell">
                       {item.date}
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-4 py-4 text-center">
                       <div className="inline-grid grid-cols-[14px_1fr] items-center gap-1 text-xs text-muted-foreground whitespace-nowrap">
                         <Eye className="w-3 h-3" />
                         <span className="tabular-nums">{item.viewCount.toLocaleString()}</span>
