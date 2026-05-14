@@ -243,55 +243,72 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
         onClick={(e) => e.stopPropagation()}
       >
         {/* 모달 헤더 */}
-        <div className="flex items-center justify-between p-5 border-b border-border">
-          <h2 className="font-bold text-lg text-foreground flex items-center gap-2">
-            <FileText className="w-5 h-5 text-primary" />
-            {isEditing ? "내용 수정" : "상세 내용"}
-          </h2>
+        <div className="relative overflow-hidden border-b border-border bg-gradient-to-r from-primary/10 via-card to-primary/5 p-5">
+          <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-primary/10" />
+          <div className="absolute right-16 bottom-0 h-12 w-12 rounded-full bg-accent/40" />
 
-          <div className="flex items-center gap-2">
-            {!isEditing ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsEditing(true)}
-                className="gap-2"
+          <div className="relative flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                <FileText className="h-5 w-5" />
+              </div>
+
+              <div>
+                <h2 className="font-bold text-lg text-foreground">
+                  {isEditing ? "내용 수정" : "상세 내용"}
+                </h2>
+
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  전자신고 설명서의 본문과 첨부파일을 확인할 수 있습니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!isEditing ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsEditing(true)}
+                  className="gap-2 bg-background/80 backdrop-blur-sm"
+                >
+                  <Pencil className="w-4 h-4" />
+                  수정
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setIsEditing(false)}
+                  >
+                    취소
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={updateMutation.isPending || isEditUploadingFile}
+                    className="gap-2"
+                  >
+                    {updateMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+
+                    저장
+                  </Button>
+                </>
+              )}
+
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded-md hover:bg-background/70 transition-colors"
               >
-                <Pencil className="w-4 h-4" />
-                수정
-              </Button>
-            ) : (
-              <>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setIsEditing(false)}
-                >
-                  취소
-                </Button>
-
-                <Button
-                  size="sm"
-                  onClick={handleSave}
-                  disabled={updateMutation.isPending || isEditUploadingFile}
-                  className="gap-2"
-                >
-                  {updateMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4" />
-                  )}
-                  저장
-                </Button>
-              </>
-            )}
-
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-md hover:bg-muted transition-colors"
-            >
-              <X className="w-5 h-5 text-muted-foreground" />
-            </button>
+                <X className="w-5 h-5 text-muted-foreground" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -537,28 +554,6 @@ function DetailModal({ item, onClose, onSaved }: { item: any; onClose: () => voi
                   </p>
                 )}
               </div>
-            )}
-          </div>
-
-          {/* 원본 URL */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground">원본 URL</label>
-            {isEditing ? (
-              <Input
-                value={editUrl}
-                onChange={(e) => setEditUrl(e.target.value)}
-                placeholder="https://..."
-                className="bg-background"
-              />
-            ) : (
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs text-primary hover:underline break-all"
-              >
-                {item.url}
-              </a>
             )}
           </div>
         </div>
