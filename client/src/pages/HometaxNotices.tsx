@@ -1162,15 +1162,38 @@ useEffect(() => {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-muted/30 border-b border-border">
-                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-16">No</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">제목</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-20 hidden sm:table-cell">구분</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-28 hidden sm:table-cell">세금 유형</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-36 hidden md:table-cell">문서 유형</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-32 whitespace-nowrap hidden lg:table-cell">등록일</th>
-                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-20">조회수</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-16">
+                    No
+                  </th>
+
+                  <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    제목
+                  </th>
+
+                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-20 hidden sm:table-cell">
+                    구분
+                  </th>
+
+                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-28 hidden sm:table-cell">
+                    세금 유형
+                  </th>
+
+                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-36 hidden md:table-cell">
+                    문서 유형
+                  </th>
+
+                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-32 whitespace-nowrap hidden lg:table-cell">
+                    등록일
+                  </th>
+
+                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-20">
+                    조회수
+                  </th>
+
                   {isAdmin && (
-                    <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-16">관리</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-16">
+                      삭제
+                    </th>
                   )}
                 </tr>
               </thead>
