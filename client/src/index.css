@@ -410,3 +410,17 @@ h1, h2, h3, h4, h5, h6 {
 html[class*="theme-"] {
   filter: saturate(var(--theme-intensity, 1));
 }
+
+/* ─── PC layout fixed width ──────────────────────────────────────────────── */
+/* PC 화면에서는 창을 줄여도 레이아웃이 찌그러지지 않고 가로 스크롤로 보이게 처리 */
+@media (min-width: 768px) {
+  html,
+  body,
+  #root {
+    min-width: 1180px;
+  }
+
+  body {
+    overflow-x: auto;
+  }
+}
