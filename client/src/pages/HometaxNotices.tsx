@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { getCurrentUser, requireLogin } from "@/lib/simpleAuth";
+import { AUTH_CHANGED_EVENT, getCurrentUser, requireLogin } from "@/lib/simpleAuth";
 
 const TAX_TYPES = ["전체", "부가가치세", "종합소득세", "법인세", "원천세", "양도소득세", "상속/증여세", "개별소비세", "기타"];
 const DOC_TYPES = ["전체", "파일설명서", "전산매체 제출요령", "기타"];
@@ -816,6 +816,21 @@ export default function HometaxNotices() {
   const [crawlStatus, setCrawlStatus] = useState<CrawlStatus | null>(null);
   const crawlPollingRef = useRef<number | null>(null);
 
+  const [authUser, setAuthUser] = useState(() => getCurrentUser());
+const isAdmin = authUser?.role === "admin";
+
+useEffect(() => {
+  const syncAuthUser = () => {
+    setAuthUser(getCurrentUser());
+  };
+
+  window.addEventListener(AUTH_CHANGED_EVENT, syncAuthUser);
+
+  return () => {
+    window.removeEventListener(AUTH_CHANGED_EVENT, syncAuthUser);
+  };
+}, []);
+
   const ensureLogin = () => {
   const user = getCurrentUser();
 
@@ -1006,56 +1021,43 @@ useEffect(() => {
         <Plus className="w-4 h-4" /> 수기 등록
       </Button>
 
-      <Button
-        size="sm"
-        variant="outline"
-        className="gap-2 bg-card shadow-sm"
-        onClick={() => { if (ensureLogin()) crawlMutation.mutate(); }}
-        disabled={crawlMutation.isPending || crawlStatus?.running}
-      >
-        <RefreshCw
-          className={cn(
-            "w-4 h-4",
-            (crawlMutation.isPending || crawlStatus?.running) && "animate-spin"
-          )}
-        />
-        {crawlStatus?.running
-          ? `수집중... (${crawlStatus.current} / ${crawlStatus.total || "?"})`
-          : crawlMutation.isPending
-            ? "수집 시작 중..."
-            : "지금 수집"}
-      </Button>
-
-      <Button
-        size="sm"
-        variant="ghost"
-        className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-        onClick={() => {
-          if (!ensureLogin()) return;
-          if (confirm("모든 데이터를 삭제하시겠습니까?")) deleteAllMutation.mutate();
-        }}
-        disabled={deleteAllMutation.isPending}
-      >
-        <Trash2 className="w-4 h-4" /> 전체 삭제
-      </Button>
-    </div>
-
-    <p className="text-xs text-muted-foreground">
-      마지막 수집일시: {lastCrawledAt}
-    </p>
-    {crawlStatus && (
-      <p
-        className={cn(
-          "text-xs font-medium",
-          crawlStatus.running ? "text-primary" : "text-muted-foreground"
-        )}
-      >
-        {crawlStatus.message}
-      </p>
-    )}
-  </div>
-</div>
-
+      {isAdmin && (
+        <>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 bg-card shadow-sm"
+            onClick={() => { if (ensureLogin()) crawlMutation.mutate(); }}
+            disabled={crawlMutation.isPending || crawlStatus?.running}
+          >
+            <RefreshCw
+              className={cn(
+                "w-4 h-4",
+                (crawlMutation.isPending || crawlStatus?.running) && "animate-spin"
+              )}
+            />
+            {crawlStatus?.running
+              ? `수집중... (${crawlStatus.current} / ${crawlStatus.total || "?"})`
+              : crawlMutation.isPending
+                ? "수집 시작 중..."
+                : "지금 수집"}
+          </Button>
+      
+          <Button
+            size="sm"
+            variant="ghost"
+            className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => {
+              if (!ensureLogin()) return;
+              if (confirm("모든 데이터를 삭제하시겠습니까?")) deleteAllMutation.mutate();
+            }}
+            disabled={deleteAllMutation.isPending}
+          >
+            <Trash2 className="w-4 h-4" /> 전체 삭제
+          </Button>
+        </>
+      )}
+      
       {/* 필터 */}
       <div className="bg-card border border-border rounded-xl p-5 mb-6 shadow-sm">
         <div className="flex items-center gap-2 mb-4">
@@ -1139,7 +1141,9 @@ useEffect(() => {
                   <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-36 hidden md:table-cell">문서 유형</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-32 whitespace-nowrap hidden lg:table-cell">등록일</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider w-20">조회수</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-16">관리</th>
+                  {isAdmin && (
+                    <th className="px-4 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider w-16">관리</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -1173,15 +1177,17 @@ useEffect(() => {
                         <span className="tabular-nums">{item.viewCount.toLocaleString()}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-center">
-                      <button
-                        onClick={() => { if (!ensureLogin()) return; if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: item.id }); }}
-                        className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                        title="삭제"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
+                    {isAdmin && (
+                      <td className="px-4 py-4 text-center">
+                        <button
+                          onClick={() => { if (!ensureLogin()) return; if (confirm("삭제하시겠습니까?")) deleteMutation.mutate({ id: item.id }); }}
+                          className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                          title="삭제"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
