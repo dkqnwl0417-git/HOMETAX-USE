@@ -11,6 +11,8 @@ import {
   updatePasswordWithCurrent,
   getUserTheme,
   saveUserTheme,
+  getUserThemeIntensity,
+  saveUserThemeIntensity,
   THEME_OPTIONS,
   type AppUser,
   type AppTheme,
@@ -29,6 +31,7 @@ export default function NavBar() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState<AppTheme>(() => getUserTheme());
+  const [themeIntensity, setThemeIntensity] = useState(() => getUserThemeIntensity());
   const [loginId, setLoginId] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -135,6 +138,11 @@ export default function NavBar() {
   const handleThemeChange = (theme: AppTheme) => {
     setSelectedTheme(theme);
     saveUserTheme(theme, authUser?.username);
+  };
+
+  const handleThemeIntensityChange = (intensity: number) => {
+    setThemeIntensity(intensity);
+    saveUserThemeIntensity(intensity, authUser?.username);
   };
 
   const showTemporaryError = (message: string) => {
@@ -268,6 +276,7 @@ export default function NavBar() {
                     type="button"
                     onClick={() => {
                       setSelectedTheme(getUserTheme(authUser.username));
+                      setThemeIntensity(getUserThemeIntensity(authUser.username));
                       setSettingsOpen(true);
                     }}
                     className="w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -549,6 +558,34 @@ export default function NavBar() {
                 <label className="text-sm font-semibold text-foreground">
                   화면 테마
                 </label>
+                <div className="rounded-lg border border-border bg-background p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold text-foreground">
+                      색감 농도
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {themeIntensity}%
+                    </span>
+                  </div>
+
+                  <input
+                    type="range"
+                    min="70"
+                    max="130"
+                    step="5"
+                    value={themeIntensity}
+                    onChange={(e) =>
+                      handleThemeIntensityChange(Number(e.target.value))
+                    }
+                    className="w-full accent-primary"
+                  />
+
+                  <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+                    <span>연하게</span>
+                    <span>기본</span>
+                    <span>진하게</span>
+                  </div>
+                </div>                
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {THEME_OPTIONS.map((theme) => (
