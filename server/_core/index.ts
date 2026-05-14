@@ -68,6 +68,36 @@ app.get("/api/cron/hometax-crawl", async (req, res) => {
     });
   }
 });
+
+app.get("/api/crawl-status", async (_req, res) => {
+  try {
+    const crawlerApiUrl = process.env.CRAWLER_API_URL || "";
+    const crawlerBaseUrl = crawlerApiUrl.replace(/\/crawl\/?$/, "");
+    const statusUrl = `${crawlerBaseUrl}/crawl-status`;
+
+    const response = await fetch(statusUrl);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+
+      return res.status(500).json({
+        ok: false,
+        message: "크롤러 상태 조회 실패",
+        status: response.status,
+        error: errorText,
+      });
+    }
+
+    const result = await response.json();
+
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({
+      ok: false,
+      message: err?.message || "크롤러 상태 조회 중 오류가 발생했습니다.",
+    });
+  }
+});
   
   // Configure body parser
   app.use(express.json({ limit: "50mb" }));
