@@ -892,7 +892,11 @@ export default function HometaxNotices() {
         refetchLastCrawl();
 
         if (result.finishedAt) {
-          toast.success(result.message || "수집이 완료되었습니다.");
+          toast.success(result.message || "수집이 완료되었습니다. 목록을 새로고침합니다.");
+        
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
         }
       }
     }
