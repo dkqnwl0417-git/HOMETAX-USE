@@ -239,7 +239,7 @@ export default function NavBar() {
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <FileText className="w-4 h-4 text-primary-foreground" />
               </div>
-              <span className="font-bold text-base tracking-tight hidden sm:block text-foreground">
+              <span className="font-bold text-base tracking-tight text-foreground">
                 전자신고 허브
               </span>
             </div>
@@ -261,7 +261,7 @@ export default function NavBar() {
                     )}
                   >
                     <Icon className="w-4 h-4 flex-shrink-0" />
-                    <span className="hidden md:block">{item.label}</span>
+                    <span>{item.label}</span>
                   </div>
                 </Link>
               );
