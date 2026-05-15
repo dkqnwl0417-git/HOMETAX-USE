@@ -51,7 +51,7 @@ export default function Home() {
             <span className="text-primary">전자신고</span> 설명서
           </h1>
           <p className="text-lg font-medium text-foreground/80 leading-8 mb-8 max-w-xl">
-            국세청 홈택스 공지사항에서 전자신고 파일설명서와
+            국세청 홈택스 자료실에서 전자신고 파일설명서와
             전산매체 제출요령을 자동으로 수집하여 제공합니다.
             <br />
             내부 메뉴얼 자료도 손쉽게 관리할 수 있습니다.
@@ -76,7 +76,7 @@ export default function Home() {
 
             <div className="text-xs text-muted-foreground leading-relaxed">
               <p>
-                홈택스 공지사항을 자동 수집합니다. 자동 수집은 매일 오전 9시, 오후 3시에 실행됩니다.
+                홈택스 자료을 자동 수집합니다. 자동 수집은 매일 오전 9시, 오후 3시에 실행됩니다.
               </p>
               <p>
                 마지막 수집일시: {lastCrawledAt}
