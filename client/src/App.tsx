@@ -55,37 +55,37 @@ function ProtectedPage({ children }: { children: React.ReactNode }) {
 function Router() {
   return (
     <div className="min-h-screen bg-background overflow-x-auto">
-      <div className="w-[1200px] min-w-[1200px] min-h-screen mx-auto flex flex-col">
+      <div className="w-full min-w-[1200px] min-h-screen flex flex-col">
         <NavBar />
 
         <main className="flex-1 w-full">
-        <Switch>
-          <Route path="/" component={Home} />
+          <Switch>
+            <Route path="/" component={Home} />
 
-          <Route path="/hometax">
-            <ProtectedPage>
-              <HometaxNotices />
-            </ProtectedPage>
-          </Route>
+            <Route path="/hometax">
+              <ProtectedPage>
+                <HometaxNotices />
+              </ProtectedPage>
+            </Route>
 
-          <Route path="/manual">
-            <ProtectedPage>
-              <ManualFiles />
-            </ProtectedPage>
-          </Route>
+            <Route path="/manual">
+              <ProtectedPage>
+                <ManualFiles />
+              </ProtectedPage>
+            </Route>
 
-          <Route path="/account-admin">
-            <ProtectedPage>
-              <AccountAdmin />
-            </ProtectedPage>
-          </Route>
+            <Route path="/account-admin">
+              <ProtectedPage>
+                <AccountAdmin />
+              </ProtectedPage>
+            </Route>
 
-          <Route path="/404" component={NotFound} />
-          <Route component={NotFound} />
-        </Switch>
-      </main>
+            <Route path="/404" component={NotFound} />
+            <Route component={NotFound} />
+          </Switch>
+        </main>
+      </div>
     </div>
-  </div>    
   );
 }
 
