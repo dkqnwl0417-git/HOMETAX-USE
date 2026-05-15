@@ -518,7 +518,7 @@ export default function NavBar() {
                     }
                   }}
                 />
-                이 PC에서 아이디/비밀번호 저장
+                아이디/비밀번호 저장
               </label>              
 
               {loginError && (
