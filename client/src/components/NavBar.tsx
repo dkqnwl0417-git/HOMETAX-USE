@@ -180,6 +180,44 @@ export default function NavBar() {
     saveUserColorMode(nextMode, authUser?.username);
   };
 
+  const handleTestDesktopNotification = async () => {
+  const title = "전자신고 허브 테스트 알림";
+  const body = "PC 알림이 정상적으로 표시되고 있습니다.";
+
+  if (!("Notification" in window)) {
+    alert("현재 브라우저는 PC 알림을 지원하지 않습니다.");
+    return;
+  }
+
+  const showNotification = () => {
+    const notification = new Notification(title, {
+      body,
+      icon: "/favicons/favicon-blue.svg",
+    });
+
+    notification.onclick = () => {
+      window.focus();
+      window.location.href = "/hometax";
+    };
+  };
+
+  if (Notification.permission === "granted") {
+    showNotification();
+    return;
+  }
+
+  if (Notification.permission === "default") {
+    const permission = await Notification.requestPermission();
+
+    if (permission === "granted") {
+      showNotification();
+      return;
+    }
+  }
+
+  alert("브라우저 알림이 차단되어 있습니다. 사이트 설정에서 알림을 허용해주세요.");
+};
+
   const showTemporaryError = (message: string) => {
     setLoginError(message);
 
@@ -572,6 +610,27 @@ export default function NavBar() {
             </div>
 
             <div className="space-y-5">
+              <div className="rounded-lg border border-border bg-background p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      PC 알림 테스트
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      수집 알림이 정상적으로 뜨는지 확인합니다.
+                    </p>
+                  </div>
+              
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleTestDesktopNotification}
+                  >
+                    테스트
+                  </Button>
+                </div>
+              </div>
               <div className="rounded-lg border border-border bg-background">
                 <button
                   type="button"
