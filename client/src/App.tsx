@@ -10,10 +10,16 @@ import HometaxNotices from "./pages/HometaxNotices";
 import ManualFiles from "./pages/ManualFiles";
 import AccountAdmin from "./pages/AccountAdmin";
 import NavBar from "./components/NavBar";
-import { getCurrentUser, initAuthActivityTracking, requireLogin } from "@/lib/simpleAuth";
+import {
+  getCurrentUser,
+  initAuthActivityTracking,
+  requireLogin,
+  applyCurrentUserTheme,
+} from "@/lib/simpleAuth";
 
 function AuthLifecycle() {
   useEffect(() => {
+    applyCurrentUserTheme();
     return initAuthActivityTracking();
   }, []);
 
