@@ -398,6 +398,7 @@ export default function ManualFiles() {
 
   const successCount = uploadQueue.filter((item) => item.status === "success").length;
   const failedCount = uploadQueue.filter((item) => item.status === "error").length;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / 10)) : 1;
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-5xl">
@@ -524,7 +525,10 @@ export default function ManualFiles() {
               placeholder="자료 제목으로 검색..."
               className="pl-10"
               value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
+              onChange={(e) => {
+                setKeyword(e.target.value);
+                setPage(1);
+              }}
             />
           </div>
 
@@ -594,6 +598,43 @@ export default function ManualFiles() {
               })
             )}
           </div>
+                    {totalPages > 1 && (
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page === 1}
+              >
+                이전
+              </Button>
+
+              {Array.from({ length: totalPages }).map((_, index) => {
+                const pageNumber = index + 1;
+
+                return (
+                  <Button
+                    key={pageNumber}
+                    variant={page === pageNumber ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPage(pageNumber)}
+                    className="min-w-9"
+                  >
+                    {pageNumber}
+                  </Button>
+                );
+              })}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={page === totalPages}
+              >
+                다음
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>
