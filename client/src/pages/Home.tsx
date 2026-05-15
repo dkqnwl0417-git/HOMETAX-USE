@@ -24,7 +24,7 @@ export default function Home() {
   });
 
   return (
-    <div className="relative min-w-[1200px] overflow-hidden">
+    <div className="relative w-full min-w-[1200px] overflow-hidden">
       {/* Geometric accent blobs */}
       <div
         className="geo-blob w-96 h-96 -top-20 -right-20 opacity-40"
@@ -39,7 +39,7 @@ export default function Home() {
         style={{ background: "oklch(0.85 0.08 230 / 0.25)" }}
       />
 
-      <div className="mx-auto w-[1200px] min-w-[1200px] px-8 relative z-10 py-28">
+      <div className="w-full min-w-[1200px] px-8 relative z-10 py-28">
         {/* Hero */}
         <div className="max-w-2xl">
           <p className="text-sm font-medium text-primary tracking-widest uppercase mb-4">
