@@ -323,7 +323,7 @@ export default function NavBar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full min-w-[1200px] border-b border-border bg-card/95 backdrop-blur-sm">
+      <header className="fixed left-0 top-0 z-50 w-full min-w-[1200px] border-b border-border bg-card/95 backdrop-blur-sm">
         <div className="flex h-16 w-full min-w-[1200px] items-center justify-between px-8">
           <Link href="/">
             <div className="flex items-center gap-2 cursor-pointer select-none">
