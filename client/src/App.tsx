@@ -161,7 +161,7 @@ function Router() {
       <div className="w-full min-w-[1200px] min-h-screen flex flex-col">
         <NavBar />
 
-        <main className="flex-1 w-full">
+        <main className="flex-1 w-full pt-16">
           <Switch>
             <Route path="/" component={Home} />
 
