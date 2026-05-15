@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Search,
+  ChevronLeft,
+  ChevronRight,
   Upload,
   FileText,
   Download,
@@ -27,6 +29,7 @@ import {
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { getCurrentUser, requireLogin } from "@/lib/simpleAuth";
+import { cn } from "@/lib/utils";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
@@ -598,40 +601,52 @@ export default function ManualFiles() {
               })
             )}
           </div>
-                    {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
+          {totalPages > 1 && (
+            <div className="mt-8 flex items-center justify-center gap-2">
               <Button
                 variant="outline"
-                size="sm"
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                size="icon"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
+                className="w-9 h-9 rounded-full"
               >
-                이전
+                <ChevronLeft className="w-4 h-4" />
               </Button>
 
-              {Array.from({ length: totalPages }).map((_, index) => {
-                const pageNumber = index + 1;
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  let pageNum: number;
 
-                return (
-                  <Button
-                    key={pageNumber}
-                    variant={page === pageNumber ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPage(pageNumber)}
-                    className="min-w-9"
-                  >
-                    {pageNumber}
-                  </Button>
-                );
-              })}
+                  if (totalPages <= 5) pageNum = i + 1;
+                  else if (page <= 3) pageNum = i + 1;
+                  else if (page >= totalPages - 2) pageNum = totalPages - 4 + i;
+                  else pageNum = page - 2 + i;
+
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={cn(
+                        "w-9 h-9 text-sm rounded-full transition-all font-medium",
+                        page === pageNum
+                          ? "bg-primary text-primary-foreground shadow-md"
+                          : "text-muted-foreground hover:bg-muted"
+                      )}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
 
               <Button
                 variant="outline"
-                size="sm"
-                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                size="icon"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
+                className="w-9 h-9 rounded-full"
               >
-                다음
+                <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
           )}
