@@ -24,7 +24,7 @@ export default function Home() {
   });
 
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative min-w-[1200px] overflow-hidden">
       {/* Geometric accent blobs */}
       <div
         className="geo-blob w-96 h-96 -top-20 -right-20 opacity-40"
@@ -39,25 +39,25 @@ export default function Home() {
         style={{ background: "oklch(0.85 0.08 230 / 0.25)" }}
       />
 
-      <div className="container relative z-10 py-20 md:py-28">
+      <div className="mx-auto w-[1200px] min-w-[1200px] px-8 relative z-10 py-28">
         {/* Hero */}
         <div className="max-w-2xl">
           <p className="text-sm font-medium text-primary tracking-widest uppercase mb-4">
             Tax Filing Hub
           </p>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-foreground leading-tight mb-4">
+          <h1 className="text-6xl font-extrabold text-foreground leading-tight mb-4">
             홈택스
             <br />
             <span className="text-primary">전자신고</span> 설명서
           </h1>
-          <p className="text-[15px] md:text-lg font-medium text-foreground/80 leading-8 mb-8 max-w-xl">
+          <p className="text-lg font-medium text-foreground/80 leading-8 mb-8 max-w-xl">
             국세청 홈택스 공지사항에서 전자신고 파일설명서와
             전산매체 제출요령을 자동으로 수집하여 제공합니다.
             <br />
             내부 메뉴얼 자료도 손쉽게 관리할 수 있습니다.
           </p>
           <div className="space-y-3">
-            <div className="flex flex-wrap gap-3">
+            <div className="flex gap-3">
               <Link href="/hometax">
                 <Button size="lg" className="gap-2 font-semibold">
                   <FileText className="w-4 h-4" />
