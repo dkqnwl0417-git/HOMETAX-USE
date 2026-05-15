@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Bell, FileText, BookOpen, Home, X, Trash2, LogIn, LogOut, Users, Settings } from "lucide-react";
+import { Bell, FileText, BookOpen, Home, X, Trash2, LogIn, LogOut, Users, Settings, Sun, Moon } from "lucide-react";
 import {
   AUTH_CHANGED_EVENT,
   OPEN_LOGIN_EVENT,
@@ -38,6 +38,8 @@ export default function NavBar() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordAccordionOpen, setPasswordAccordionOpen] = useState(false);
+  const [themeAccordionOpen, setThemeAccordionOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [loginError, setLoginError] = useState("");
 
   const { data: unreadData, refetch: refetchUnread } =
