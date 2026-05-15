@@ -30,16 +30,19 @@ export function ThemeProvider({
   });
 
   useEffect(() => {
+    if (!switchable) {
+      return;
+    }
+
     const root = document.documentElement;
+
     if (theme === "dark") {
       root.classList.add("dark");
     } else {
       root.classList.remove("dark");
     }
 
-    if (switchable) {
-      localStorage.setItem("theme", theme);
-    }
+    localStorage.setItem("theme", theme);
   }, [theme, switchable]);
 
   const toggleTheme = switchable
