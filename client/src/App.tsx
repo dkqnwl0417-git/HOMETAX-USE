@@ -10,7 +10,6 @@ import HometaxNotices from "./pages/HometaxNotices";
 import ManualFiles from "./pages/ManualFiles";
 import AccountAdmin from "./pages/AccountAdmin";
 import NavBar from "./components/NavBar";
-import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
   getCurrentUser,
@@ -28,79 +27,98 @@ function AuthLifecycle() {
   return null;
 }
 
-const LAST_NOTIFIED_CRAWL_KEY = "hometax-last-notified-crawl-at";
+const LAST_SEEN_CRAWL_FINISHED_KEY = "hometax-last-seen-crawl-finished-at";
 
 function CrawlDesktopNotification() {
   const initializedRef = useRef(false);
-  const lastSeenCrawlRef = useRef<string | null>(null);
-
-  const { data } = trpc.hometax.lastCrawl.useQuery(undefined, {
-    refetchInterval: 60 * 1000,
-    refetchIntervalInBackground: true,
-  });
+  const lastFinishedAtRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const crawledAt = data?.crawledAt;
+    const showDesktopNotification = async (inserted: number) => {
+      const title = "홈택스 신규 자료 수집 완료";
+      const body = `새로운 전자신고 자료 ${inserted}건이 등록되었습니다.`;
 
-    if (!crawledAt) return;
+      if (!("Notification" in window)) {
+        toast.success(body);
+        return;
+      }
 
-    const crawlTime = String(crawledAt);
+      const showNotification = () => {
+        const notification = new Notification(title, {
+          body,
+          icon: "/favicons/favicon-blue.svg",
+        });
 
-    if (!initializedRef.current) {
-      initializedRef.current = true;
-      lastSeenCrawlRef.current = crawlTime;
-      localStorage.setItem(LAST_NOTIFIED_CRAWL_KEY, crawlTime);
-      return;
-    }
-
-    if (lastSeenCrawlRef.current === crawlTime) return;
-
-    const alreadyNotified = localStorage.getItem(LAST_NOTIFIED_CRAWL_KEY);
-
-    lastSeenCrawlRef.current = crawlTime;
-    localStorage.setItem(LAST_NOTIFIED_CRAWL_KEY, crawlTime);
-
-    if (alreadyNotified === crawlTime) return;
-
-    const title = "홈택스 자동 수집 완료";
-    const body = "새로운 전자신고 자료가 수집되었습니다. 목록을 확인해주세요.";
-
-    if (!("Notification" in window)) {
-      toast.success(body);
-      return;
-    }
-
-    if (Notification.permission === "granted") {
-      const notification = new Notification(title, {
-        body,
-        icon: "/favicons/favicon-blue.svg",
-      });
-
-      notification.onclick = () => {
-        window.focus();
-        window.location.href = "/hometax";
+        notification.onclick = () => {
+          window.focus();
+          window.location.href = "/hometax";
+        };
       };
 
-      return;
-    }
+      if (Notification.permission === "granted") {
+        showNotification();
+        return;
+      }
 
-    if (Notification.permission === "default") {
-      Notification.requestPermission().then((permission) => {
+      if (Notification.permission === "default") {
+        const permission = await Notification.requestPermission();
+
         if (permission === "granted") {
-          new Notification(title, {
-            body,
-            icon: "/favicons/favicon-blue.svg",
-          });
-        } else {
-          toast.success(body);
+          showNotification();
+          return;
         }
-      });
+      }
 
-      return;
-    }
+      toast.success(body);
+    };
 
-    toast.success(body);
-  }, [data?.crawledAt]);
+    const checkCrawlStatus = async () => {
+      try {
+        const response = await fetch("/api/crawl-status", {
+          cache: "no-store",
+        });
+
+        const result = await response.json();
+
+        if (!result?.ok) return;
+        if (result.running) return;
+        if (!result.finishedAt) return;
+
+        const finishedAt = String(result.finishedAt);
+        const inserted = Number(result.inserted || 0);
+
+        if (!initializedRef.current) {
+          initializedRef.current = true;
+          lastFinishedAtRef.current = finishedAt;
+          localStorage.setItem(LAST_SEEN_CRAWL_FINISHED_KEY, finishedAt);
+          return;
+        }
+
+        const lastSeen =
+          lastFinishedAtRef.current ||
+          localStorage.getItem(LAST_SEEN_CRAWL_FINISHED_KEY);
+
+        if (lastSeen === finishedAt) return;
+
+        lastFinishedAtRef.current = finishedAt;
+        localStorage.setItem(LAST_SEEN_CRAWL_FINISHED_KEY, finishedAt);
+
+        if (inserted > 0) {
+          showDesktopNotification(inserted);
+        }
+      } catch (error) {
+        console.error("수집 상태 확인 실패", error);
+      }
+    };
+
+    checkCrawlStatus();
+
+    const timer = window.setInterval(checkCrawlStatus, 60 * 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
 
   return null;
 }
