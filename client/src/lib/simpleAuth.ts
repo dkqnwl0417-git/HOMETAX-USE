@@ -12,7 +12,10 @@ export type AppTheme =
   | "lavender"
   | "beige"
   | "coral"
-  | "pink";
+  | "pink"
+  | "dark";
+
+export type AppColorMode = "light" | "dark";
 
 export const THEME_OPTIONS: { value: AppTheme; label: string; description: string }[] = [
   { value: "blue", label: "기본 블루", description: "깔끔하고 무난한 기본 업무용 테마" },
@@ -24,6 +27,7 @@ export const THEME_OPTIONS: { value: AppTheme; label: string; description: strin
   { value: "beige", label: "베이지", description: "따뜻하고 눈이 편한 색감" },
   { value: "coral", label: "코랄", description: "밝고 산뜻한 포인트 테마" },
   { value: "pink", label: "핑크", description: "부드럽고 화사한 색감" },
+  { value: "dark", label: "다크", description: "차분하고 어두운 기본 테마" },
 ];
 
 const CURRENT_USER_KEY = "hometax-current-user";
@@ -32,6 +36,7 @@ const SESSION_LIMIT_MS = 3 * 60 * 60 * 1000;
 const USER_THEME_PREFIX = "hometax-user-theme-";
 const THEME_CLASS_PREFIX = "theme-";
 const USER_THEME_INTENSITY_PREFIX = "hometax-user-theme-intensity-";
+const USER_COLOR_MODE_PREFIX = "hometax-user-color-mode-";
 
 export const AUTH_CHANGED_EVENT = "hometax-auth-changed";
 export const OPEN_LOGIN_EVENT = "hometax-open-login";
@@ -46,6 +51,46 @@ function getThemeKey(username: string) {
 
 function getThemeIntensityKey(username: string) {
   return `${USER_THEME_INTENSITY_PREFIX}${username}`;
+}
+
+function getColorModeKey(username: string) {
+  return `${USER_COLOR_MODE_PREFIX}${username}`;
+}
+
+export function getUserColorMode(username?: string): AppColorMode {
+  const targetUsername = username || getCurrentUser()?.username;
+
+  if (!targetUsername) {
+    return "light";
+  }
+
+  const savedMode = localStorage.getItem(getColorModeKey(targetUsername));
+
+  if (savedMode === "dark" || savedMode === "light") {
+    return savedMode;
+  }
+
+  return "light";
+}
+
+export function applyColorMode(mode: AppColorMode) {
+  if (mode === "dark") {
+    document.documentElement.classList.add("dark");
+  } else {
+    document.documentElement.classList.remove("dark");
+  }
+}
+
+export function saveUserColorMode(mode: AppColorMode, username?: string) {
+  const targetUsername = username || getCurrentUser()?.username;
+
+  if (!targetUsername) {
+    return;
+  }
+
+  localStorage.setItem(getColorModeKey(targetUsername), mode);
+  applyColorMode(mode);
+  emitAuthChanged();
 }
 
 export function getUserThemeIntensity(username?: string): number {
@@ -143,8 +188,10 @@ export function applyCurrentUserTheme() {
   const user = getCurrentUser();
   const theme = getUserTheme(user?.username);
   const intensity = getUserThemeIntensity(user?.username);
+  const colorMode = getUserColorMode(user?.username);
   
   applyTheme(theme, intensity);
+  applyColorMode(colorMode);
 }
 
 export function getCurrentUser(): AppUser | null {
@@ -201,6 +248,8 @@ export async function login(username: string, password: string) {
     getUserTheme(data.user.username),
     getUserThemeIntensity(data.user.username)
   );
+
+  applyColorMode(getUserColorMode(data.user.username));
 
   touchActivity();
   emitAuthChanged();
@@ -303,6 +352,7 @@ export function logout() {
   sessionStorage.removeItem(CURRENT_USER_KEY);
   localStorage.removeItem(LAST_ACTIVITY_KEY);
   applyTheme("blue", 100);
+  applyColorMode("light");
   emitAuthChanged();
 }
 
