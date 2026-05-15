@@ -34,8 +34,20 @@ export default function NavBar() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState<AppTheme>(() => getUserTheme());
   const [themeIntensity, setThemeIntensity] = useState(() => getUserThemeIntensity());
-  const [loginId, setLoginId] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
+  const AUTO_LOGIN_KEY = "hometax-auto-login";
+  
+  const savedAutoLogin = (() => {
+    try {
+      const raw = localStorage.getItem(AUTO_LOGIN_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  })();
+  
+  const [loginId, setLoginId] = useState(savedAutoLogin?.username || "");
+  const [loginPassword, setLoginPassword] = useState(savedAutoLogin?.password || "");
+  const [autoLoginChecked, setAutoLoginChecked] = useState(!!savedAutoLogin);
   const [newPassword, setNewPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -131,7 +143,19 @@ export default function NavBar() {
   setAuthUser(result.user || null);
   setLoginOpen(false);
   setLoginError("");
-  setLoginPassword("");
+  
+  if (autoLoginChecked) {
+    localStorage.setItem(
+      AUTO_LOGIN_KEY,
+      JSON.stringify({
+        username: loginId,
+        password: loginPassword,
+      })
+    );
+  } else {
+    localStorage.removeItem(AUTO_LOGIN_KEY);
+    setLoginPassword("");
+  }
 
   if (result.isInitialPassword) {
     setNewPassword("1");
@@ -481,6 +505,21 @@ export default function NavBar() {
                   placeholder="초기 비밀번호는 1입니다"
                 />
               </div>
+
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={autoLoginChecked}
+                  onChange={(e) => {
+                    setAutoLoginChecked(e.target.checked);
+
+                    if (!e.target.checked) {
+                      localStorage.removeItem(AUTO_LOGIN_KEY);
+                    }
+                  }}
+                />
+                이 PC에서 아이디/비밀번호 저장
+              </label>              
 
               {loginError && (
                 <p className="text-xs text-destructive">{loginError}</p>
