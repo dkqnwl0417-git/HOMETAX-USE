@@ -114,7 +114,17 @@ export function applyTheme(theme: AppTheme, intensity = 100) {
   );
 
   document.documentElement.classList.add(`${THEME_CLASS_PREFIX}${theme}`);
+
   applyThemeIntensity(intensity);
+
+  // favicon 변경
+  const favicon = document.getElementById(
+    "dynamic-favicon"
+  ) as HTMLLinkElement | null;
+
+  if (favicon) {
+    favicon.href = `/favicons/favicon-${theme}.svg`;
+  }
 }
 
 export function saveUserTheme(theme: AppTheme, username?: string) {
