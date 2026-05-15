@@ -13,6 +13,8 @@ import {
   saveUserTheme,
   getUserThemeIntensity,
   saveUserThemeIntensity,
+  getUserColorMode,
+  saveUserColorMode,
   THEME_OPTIONS,
   type AppUser,
   type AppTheme,
@@ -39,7 +41,7 @@ export default function NavBar() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordAccordionOpen, setPasswordAccordionOpen] = useState(false);
   const [themeAccordionOpen, setThemeAccordionOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => getUserColorMode() === "dark");
   const [loginError, setLoginError] = useState("");
 
   const { data: unreadData, refetch: refetchUnread } =
@@ -145,6 +147,13 @@ export default function NavBar() {
   const handleThemeIntensityChange = (intensity: number) => {
     setThemeIntensity(intensity);
     saveUserThemeIntensity(intensity, authUser?.username);
+  };
+
+  const handleColorModeToggle = () => {
+    const nextMode = isDarkMode ? "light" : "dark";
+
+    setIsDarkMode(nextMode === "dark");
+    saveUserColorMode(nextMode, authUser?.username);
   };
 
   const showTemporaryError = (message: string) => {
@@ -279,6 +288,7 @@ export default function NavBar() {
                     onClick={() => {
                       setSelectedTheme(getUserTheme(authUser.username));
                       setThemeIntensity(getUserThemeIntensity(authUser.username));
+                      setIsDarkMode(getUserColorMode(authUser.username) === "dark");
                       setSettingsOpen(true);
                     }}
                     className="w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -557,66 +567,108 @@ export default function NavBar() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground">
-                  화면 테마
-                </label>
-                <div className="rounded-lg border border-border bg-background p-3">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-semibold text-foreground">
+                    화면 테마
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={handleColorModeToggle}
+                    className={cn(
+                      "relative flex h-8 w-16 items-center rounded-full border border-border p-1 transition-colors",
+                      isDarkMode ? "bg-primary" : "bg-muted"
+                    )}
+                    title={isDarkMode ? "다크 모드" : "라이트 모드"}
+                  >
+                    <span
+                      className={cn(
+                        "flex h-6 w-6 items-center justify-center rounded-full bg-background shadow-sm transition-transform",
+                        isDarkMode ? "translate-x-8" : "translate-x-0"
+                      )}
+                    >
+                      {isDarkMode ? (
+                        <Moon className="h-3.5 w-3.5 text-primary" />
+                      ) : (
+                        <Sun className="h-3.5 w-3.5 text-primary" />
+                      )}
+                    </span>
+                  </button>
+                </div>
+
+                <div className="rounded-lg border border-border bg-background">
+                  <button
+                    type="button"
+                    onClick={() => setThemeAccordionOpen((prev) => !prev)}
+                    className="w-full flex items-center justify-between px-3 py-3 text-left"
+                  >
                     <span className="text-sm font-semibold text-foreground">
                       색감
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {themeIntensity}%
+                      {themeAccordionOpen ? "접기" : "펼치기"}
                     </span>
-                  </div>
+                  </button>
 
-                  <input
-                    type="range"
-                    min="70"
-                    max="150"
-                    step="5"
-                    value={themeIntensity}
-                    onChange={(e) =>
-                      handleThemeIntensityChange(Number(e.target.value))
-                    }
-                    className="w-full accent-primary"
-                  />
-
-                  <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
-                    <span>연하게</span>
-                    <span>기본</span>
-                    <span>진하게</span>
-                  </div>
-                </div>                
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {THEME_OPTIONS.map((theme) => (
-                    <button
-                      key={theme.value}
-                      type="button"
-                      onClick={() => handleThemeChange(theme.value)}
-                      className={cn(
-                        "text-left rounded-lg border p-3 transition-colors hover:bg-muted",
-                        selectedTheme === theme.value
-                          ? "border-primary bg-primary/10"
-                          : "border-border bg-background"
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-semibold text-foreground">
-                          {theme.label}
-                        </span>
-                        {selectedTheme === theme.value && (
-                          <span className="text-[10px] font-bold text-primary">
-                            선택됨
+                  {themeAccordionOpen && (
+                    <div className="space-y-3 border-t border-border p-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold text-muted-foreground">
+                            농도
                           </span>
-                        )}
+                          <span className="text-xs text-muted-foreground">
+                            {themeIntensity}%
+                          </span>
+                        </div>
+
+                        <input
+                          type="range"
+                          min="70"
+                          max="150"
+                          step="5"
+                          value={themeIntensity}
+                          onChange={(e) =>
+                            handleThemeIntensityChange(Number(e.target.value))
+                          }
+                          className="w-full accent-primary"
+                        />
+
+                        <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+                          <span>연하게</span>
+                          <span>기본</span>
+                          <span>진하게</span>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {theme.description}
-                      </p>
-                    </button>
-                  ))}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {THEME_OPTIONS.map((theme) => (
+                          <button
+                            key={theme.value}
+                            type="button"
+                            onClick={() => handleThemeChange(theme.value)}
+                            className={cn(
+                              "text-left rounded-lg border p-3 transition-colors hover:bg-muted",
+                              selectedTheme === theme.value
+                                ? "border-primary bg-primary/10"
+                                : "border-border bg-background"
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-semibold text-foreground">
+                                {theme.label}
+                              </span>
+                              {selectedTheme === theme.value && (
+                                <span className="text-[10px] font-bold text-primary">
+                                  선택됨
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
