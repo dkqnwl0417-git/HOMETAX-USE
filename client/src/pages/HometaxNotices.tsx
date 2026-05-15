@@ -1014,7 +1014,7 @@ useEffect(() => {
         <div>
           <p className="text-xs font-semibold text-primary tracking-widest uppercase mb-1">Hometax</p>
           <h1 className="text-3xl font-extrabold text-foreground tracking-tight">전자신고 설명서</h1>
-          <p className="text-sm font-light text-muted-foreground mt-1">홈택스 공지사항 자동 수집 및 수기 등록 관리</p>
+          <p className="text-sm font-light text-muted-foreground mt-1">홈택스 자료 자동 수집 및 수기 등록 관리</p>
         </div>
 
         <div className="flex flex-col items-end gap-2 self-start sm:self-auto">
@@ -1068,7 +1068,7 @@ useEffect(() => {
 
           <div className="text-xs text-muted-foreground text-right leading-relaxed">
             <p>
-              홈택스 공지사항을 자동 수집합니다. 자동 수집은 매일 오전 9시, 오후 3시에 실행됩니다.
+              홈택스 자료를 자동 수집합니다. 자동 수집은 매일 오전 9시, 오후 3시에 실행됩니다.
             </p>
             <p>
               마지막 수집일시: {lastCrawledAt}
