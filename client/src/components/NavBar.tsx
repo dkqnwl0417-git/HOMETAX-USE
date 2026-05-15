@@ -232,8 +232,8 @@ export default function NavBar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur-sm">
-        <div className="container flex h-16 items-center justify-between">
+      <header className="sticky top-0 z-50 w-full min-w-[1200px] border-b border-border bg-card/95 backdrop-blur-sm">
+        <div className="mx-auto flex h-16 w-[1200px] min-w-[1200px] items-center justify-between px-8">
           <Link href="/">
             <div className="flex items-center gap-2 cursor-pointer select-none">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
@@ -245,7 +245,7 @@ export default function NavBar() {
             </div>
           </Link>
 
-          <nav className="flex items-center gap-1">
+          <nav className="flex shrink-0 items-center gap-1 whitespace-nowrap">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location === item.href;
@@ -268,7 +268,7 @@ export default function NavBar() {
             })}
           </nav>
 
-          <div className="flex items-center gap-4">
+          <div className="flex shrink-0 items-center gap-4 whitespace-nowrap">
             <div className="flex items-center justify-end gap-2 min-w-[150px]">
               {authUser ? (
                 <>
