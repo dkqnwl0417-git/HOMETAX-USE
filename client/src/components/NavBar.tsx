@@ -233,8 +233,26 @@ export default function NavBar() {
   const handleLogout = () => {
     logout();
     setAuthUser(null);
-    setLoginId("");
-    setLoginPassword("");
+  
+    const saved = localStorage.getItem(AUTO_LOGIN_KEY);
+  
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+  
+        setLoginId(parsed.username || "");
+        setLoginPassword(parsed.password || "");
+        setAutoLoginChecked(true);
+      } catch {
+        setLoginId("");
+        setLoginPassword("");
+        setAutoLoginChecked(false);
+      }
+    } else {
+      setLoginId("");
+      setLoginPassword("");
+      setAutoLoginChecked(false);
+    }
   };
 
   useEffect(() => {
