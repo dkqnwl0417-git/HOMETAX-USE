@@ -117,13 +117,13 @@ export function applyTheme(theme: AppTheme, intensity = 100) {
 
   applyThemeIntensity(intensity);
 
-  // favicon 변경
+    // favicon 변경
   const favicon = document.getElementById(
     "dynamic-favicon"
   ) as HTMLLinkElement | null;
 
   if (favicon) {
-    favicon.href = `/favicons/favicon-${theme}.svg`;
+    favicon.href = `/favicons/favicon-${theme}.svg?v=${Date.now()}`;
   }
 }
 
